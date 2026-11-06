@@ -88,6 +88,17 @@ One scoring model per room. Rulesets using different models are not mixed.
 - **Account points (virtual currency):** score change / ruleset limit x per-room stake multiplier, with a cap or diminishing returns so one huge hand cannot dominate. Each ruleset defines a normalizing limit so results are comparable across rulesets. No cash-out.
 - **Elo:** computed from final placings (pairwise multiplayer Elo), tracked separately from account points: level vs skill.
 
+## v1: stateless version (current target)
+
+v1 remembers nothing once a game ends.
+
+- No database, no accounts, no auth. Players enter a display name and get a session token (enough for seating and reconnects).
+- Rooms and game state live in server memory and disappear when the game ends or the server restarts.
+- Point tracking exists only for the live game (scores per player, round by round).
+- Account points, Elo and persistent history are deferred to the later "accounts" milestone. Keep the engine free of storage: a `Player` is just an id plus a name.
+
+v1 covers milestones 1 to 6 below, with the HK Fan base and a first set of add-ons.
+
 ## Milestones
 
 1. **Setup:** workspace, CI, JSON schema for bases, add-ons, hands.
@@ -102,6 +113,6 @@ One scoring model per room. Rulesets using different models are not mixed.
 ## Open questions
 
 - Web framework for the client (React vs Svelte).
-- Persistence (SQLite to start vs Postgres).
-- Auth approach for accounts.
+- Persistence (SQLite to start vs Postgres): decide at milestone 7.
+- Auth approach for accounts: decide at milestone 7.
 - Whether the engine also compiles to WASM for client-side hand hints.
