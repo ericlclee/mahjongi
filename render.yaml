@@ -1,0 +1,8 @@
+# One-click deploy on Render: New > Blueprint, pick this repo.
+# Games live in memory, so keep this at a single instance.
+services:
+  - type: web
+    name: mahjongi
+    runtime: docker
+    plan: free
+    healthCheckPath: /

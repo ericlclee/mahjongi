@@ -18,6 +18,13 @@ Open the page on four devices (or four tabs), create a room on one, and join wit
 the others. The host picks the rules and starts the game. If you drop out, reopening the page
 rejoins your seat.
 
+## Deploy
+
+The server is a single process with everything in memory, so run exactly one instance.
+A `Dockerfile` is included, plus `render.yaml` (Render: New > Blueprint > pick this repo) and
+`fly.toml` (Fly.io: `fly launch --copy-config --no-deploy && fly deploy`). The server listens on
+`$PORT` and serves the web client itself, over `wss://` when the host uses https.
+
 ## How the rules work
 
 - **Base:** `rulesets/bases/*.json`. A scoring model, a win threshold, a limit, a payout table and a
