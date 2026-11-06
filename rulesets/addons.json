@@ -1,0 +1,44 @@
+[
+  {
+    "id": "all_simples",
+    "name": "All Simples",
+    "description": "Adds a 1 fan hand for winning with only tiles 2 to 8 of the numbered suits.",
+    "requires": ["fan"],
+    "ops": [
+      {
+        "op": "add_hand",
+        "hand": {
+          "id": "all_simples",
+          "name": "All Simples",
+          "pattern": { "type": "all_tiles", "filter": "simple" },
+          "values": { "fan": 1 }
+        }
+      }
+    ]
+  },
+  {
+    "id": "seven_pairs_6fan",
+    "name": "Seven Pairs worth 6 fan",
+    "description": "Raises Seven Pairs from 4 fan to 6 fan.",
+    "requires": ["fan"],
+    "ops": [
+      { "op": "set_value", "hand": "seven_pairs", "model": "fan", "value": 6 }
+    ]
+  },
+  {
+    "id": "lenient_threshold",
+    "name": "Lenient threshold",
+    "description": "Lowers the minimum needed to win by 1.",
+    "requires": ["fan"],
+    "conflicts": ["strict_threshold"],
+    "ops": [{ "op": "shift_threshold", "by": -1 }]
+  },
+  {
+    "id": "strict_threshold",
+    "name": "Strict threshold",
+    "description": "Raises the minimum needed to win by 1.",
+    "requires": ["fan"],
+    "conflicts": ["lenient_threshold"],
+    "ops": [{ "op": "shift_threshold", "by": 1 }]
+  }
+]
