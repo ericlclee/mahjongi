@@ -1,0 +1,329 @@
+{
+  "id": "hk_classic",
+  "name": "Hong Kong (classic, 8-fan limit)",
+  "model": "fan",
+  "provides": [
+    "fan"
+  ],
+  "threshold": 3,
+  "limit": 8,
+  "payout": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    192
+  ],
+  "hands": [
+    {
+      "id": "common_hand",
+      "name": "Common Hand",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "all_chows"
+          },
+          {
+            "type": "pair_is_not",
+            "filter": "value_tile"
+          }
+        ]
+      },
+      "values": {
+        "fan": 1
+      }
+    },
+    {
+      "id": "self_draw",
+      "name": "Self-Drawn",
+      "pattern": {
+        "type": "self_draw"
+      },
+      "values": {
+        "fan": 1
+      }
+    },
+    {
+      "id": "dragon_pung",
+      "name": "Dragon Pung",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "dragon",
+        "min": 1
+      },
+      "values": {
+        "fan": 1
+      },
+      "per_match": true
+    },
+    {
+      "id": "seat_wind_pung",
+      "name": "Seat Wind Pung",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "seat_wind",
+        "min": 1
+      },
+      "values": {
+        "fan": 1
+      }
+    },
+    {
+      "id": "round_wind_pung",
+      "name": "Round Wind Pung",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "round_wind",
+        "min": 1
+      },
+      "values": {
+        "fan": 1
+      }
+    },
+    {
+      "id": "all_pungs",
+      "name": "All Pungs",
+      "pattern": {
+        "type": "all_pungs"
+      },
+      "values": {
+        "fan": 3
+      }
+    },
+    {
+      "id": "mixed_one_suit",
+      "name": "Mixed One Suit",
+      "pattern": {
+        "type": "one_suit",
+        "honors": true
+      },
+      "values": {
+        "fan": 3
+      },
+      "open_values": {
+        "fan": 2
+      }
+    },
+    {
+      "id": "pure_one_suit",
+      "name": "Pure One Suit",
+      "pattern": {
+        "type": "one_suit",
+        "honors": false
+      },
+      "values": {
+        "fan": 6
+      },
+      "open_values": {
+        "fan": 5
+      }
+    },
+    {
+      "id": "seven_pairs",
+      "name": "Seven Pairs",
+      "pattern": {
+        "type": "seven_pairs"
+      },
+      "values": {
+        "fan": 4
+      }
+    },
+    {
+      "id": "small_three_dragons",
+      "name": "Small Three Dragons",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "pung_count",
+            "filter": "dragon",
+            "min": 2
+          },
+          {
+            "type": "pair_is",
+            "filter": "dragon"
+          }
+        ]
+      },
+      "values": {
+        "fan": 5
+      },
+      "excludes": [
+        "dragon_pung"
+      ]
+    },
+    {
+      "id": "big_three_dragons",
+      "name": "Big Three Dragons",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "dragon",
+        "min": 3
+      },
+      "values": {
+        "fan": 8
+      },
+      "excludes": [
+        "dragon_pung"
+      ]
+    },
+    {
+      "id": "small_four_winds",
+      "name": "Small Four Winds",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "pung_count",
+            "filter": "wind",
+            "min": 3
+          },
+          {
+            "type": "pair_is",
+            "filter": "wind"
+          }
+        ]
+      },
+      "values": {
+        "fan": 10
+      }
+    },
+    {
+      "id": "big_four_winds",
+      "name": "Big Four Winds",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "wind",
+        "min": 4
+      },
+      "values": {
+        "fan": 13
+      }
+    },
+    {
+      "id": "all_honors",
+      "name": "All Honors",
+      "pattern": {
+        "type": "all_tiles",
+        "filter": "honor"
+      },
+      "values": {
+        "fan": 10
+      }
+    },
+    {
+      "id": "all_terminals",
+      "name": "All Terminals",
+      "pattern": {
+        "type": "all_tiles",
+        "filter": "terminal"
+      },
+      "values": {
+        "fan": 10
+      }
+    },
+    {
+      "id": "thirteen_orphans",
+      "name": "Thirteen Orphans",
+      "pattern": {
+        "type": "thirteen_orphans"
+      },
+      "values": {
+        "fan": 13
+      }
+    },
+    {
+      "id": "outside_hand",
+      "name": "Outside Hand",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "every_set_has",
+            "filter": "terminal_or_honor"
+          },
+          {
+            "type": "not",
+            "inner": {
+              "type": "all_pungs"
+            }
+          }
+        ]
+      },
+      "values": {
+        "fan": 2
+      },
+      "open_values": {
+        "fan": 1
+      }
+    },
+    {
+      "id": "all_green",
+      "name": "All Green",
+      "pattern": {
+        "type": "all_tiles",
+        "filter": "green"
+      },
+      "values": {
+        "fan": 8
+      }
+    },
+    {
+      "id": "three_kongs",
+      "name": "Three Kongs",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "kong_count",
+            "min": 3
+          },
+          {
+            "type": "not",
+            "inner": {
+              "type": "kong_count",
+              "min": 4
+            }
+          }
+        ]
+      },
+      "values": {
+        "fan": 8
+      }
+    },
+    {
+      "id": "four_kongs",
+      "name": "Four Kongs",
+      "pattern": {
+        "type": "kong_count",
+        "min": 4
+      },
+      "values": {
+        "fan": 8
+      }
+    },
+    {
+      "id": "fully_concealed",
+      "name": "Fully Concealed",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "concealed"
+          },
+          {
+            "type": "self_draw"
+          }
+        ]
+      },
+      "values": {
+        "fan": 1
+      }
+    }
+  ]
+}

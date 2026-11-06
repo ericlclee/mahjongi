@@ -31,6 +31,8 @@ struct Room {
     settings: RoomSettings,
     game: Option<Game>,
     acks: [bool; SEATS],
+    /// When the server will play for whoever is still deciding.
+    deadline: Option<Instant>,
     empty_since: Option<Instant>,
 }
 
@@ -40,6 +42,39 @@ pub struct Server {
     next_conn: ConnId,
     bases: Vec<Base>,
     addons: Vec<AddOn>,
+}
+
+impl Room {
+    /// Start a fresh countdown if a game is running with a timer and someone has to decide.
+    fn reset_deadline(&mut self) {
+        let running = self
+            .game
+            .as_ref()
+            .is_some_and(|g| !g.is_over() && !g.is_between_hands());
+        self.deadline = (running && self.settings.turn_secs > 0)
+            .then(|| Instant::now() + Duration::from_secs(self.settings.turn_secs as u64));
+    }
+}
+
+/// What the server plays when time runs out: pass on a claim, otherwise throw back the
+/// tile just drawn (or the last tile of the hand).
+fn timeout_action(game: &Game, seat: usize) -> Option<Action> {
+    let legal = game.legal_actions(seat);
+    if legal.contains(&Action::Pass) {
+        return Some(Action::Pass);
+    }
+    let drawn = game.view(seat).drawn;
+    legal
+        .iter()
+        .copied()
+        .find(|a| matches!(a, Action::Discard { tile } if Some(*tile) == drawn))
+        .or_else(|| {
+            legal
+                .iter()
+                .rev()
+                .copied()
+                .find(|a| matches!(a, Action::Discard { .. }))
+        })
 }
 
 impl Default for Server {
@@ -107,6 +142,34 @@ impl Server {
         });
     }
 
+    /// Play for anyone who has run out of time. Call about once a second.
+    pub fn tick(&mut self) {
+        self.tick_at(Instant::now());
+    }
+
+    pub fn tick_at(&mut self, now: Instant) {
+        let due: Vec<String> = self
+            .rooms
+            .iter()
+            .filter(|(_, r)| r.deadline.is_some_and(|d| d <= now))
+            .map(|(code, _)| code.clone())
+            .collect();
+        for code in due {
+            let Some(room) = self.rooms.get_mut(&code) else {
+                continue;
+            };
+            if let Some(game) = room.game.as_mut() {
+                for seat in game.waiting_seats() {
+                    if let Some(action) = timeout_action(game, seat) {
+                        let _ = game.apply(seat, action);
+                    }
+                }
+            }
+            room.reset_deadline();
+            self.broadcast(&code);
+        }
+    }
+
     pub fn room_count(&self) -> usize {
         self.rooms.len()
     }
@@ -151,6 +214,7 @@ impl Server {
                 settings: RoomSettings::default(),
                 game: None,
                 acks: [false; SEATS],
+                deadline: None,
                 empty_since: None,
             },
         );
@@ -243,6 +307,9 @@ impl Server {
         if !(1..=4).contains(&settings.rounds) {
             return Err("rounds must be between 1 and 4".to_string());
         }
+        if settings.turn_secs != 0 && !(5..=300).contains(&settings.turn_secs) {
+            return Err("turn timer must be off or between 5 and 300 seconds".to_string());
+        }
         if !(-10..=10).contains(&settings.threshold_offset) {
             return Err("threshold change must be between -10 and 10".to_string());
         }
@@ -282,6 +349,7 @@ impl Server {
         let room = self.rooms.get_mut(&code).expect("room exists");
         room.game = Some(Game::new(config));
         room.acks = [false; SEATS];
+        room.reset_deadline();
         self.broadcast(&code);
         Ok(())
     }
@@ -291,6 +359,7 @@ impl Server {
         let room = self.rooms.get_mut(&code).expect("room exists");
         let game = room.game.as_mut().ok_or("the game has not started")?;
         game.apply(seat, action).map_err(|e| e.to_string())?;
+        room.reset_deadline();
         self.broadcast(&code);
         Ok(())
     }
@@ -311,6 +380,7 @@ impl Server {
         if everyone_ready {
             game.next_hand().map_err(|e| e.to_string())?;
             room.acks = [false; SEATS];
+            room.reset_deadline();
         }
         self.broadcast(&code);
         Ok(())
@@ -396,6 +466,7 @@ impl Server {
 
     fn summary(rules: &Ruleset) -> RulesSummary {
         RulesSummary {
+            unit: rules.model.clone(),
             threshold: rules.threshold,
             limit: rules.limit,
             payout: rules.payout.clone(),
@@ -451,6 +522,10 @@ impl Server {
                     .collect(),
                 acks: room.acks.to_vec(),
                 rules: Self::summary(&rules),
+                turn_secs: room.settings.turn_secs,
+                turn_left_ms: room
+                    .deadline
+                    .map(|d| d.saturating_duration_since(Instant::now()).as_millis() as u64),
                 view: game.view(seat),
             });
         }
@@ -498,6 +573,14 @@ impl Server {
                     name: a.name.clone(),
                     description: a.description.clone(),
                     conflicts: a.conflicts.clone(),
+                })
+                .collect(),
+            bases: self
+                .bases
+                .iter()
+                .map(|b| BaseInfo {
+                    id: b.id.clone(),
+                    name: b.name.clone(),
                 })
                 .collect(),
             can_start: room.seats.iter().all(Option::is_some),

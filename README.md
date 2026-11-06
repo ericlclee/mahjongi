@@ -28,12 +28,17 @@ A `Dockerfile` is included, plus `render.yaml` (Render: New > Blueprint > pick t
 ## How the rules work
 
 - **Base:** `rulesets/bases/*.json`. A scoring model, a win threshold, a limit, a payout table and a
-  list of hands.
+  list of hands. The host picks one in the lobby:
+  - `hk_fan` Hong Kong, fan, minimum 3, limit 10.
+  - `hk_classic` Hong Kong with an 8-fan limit plus Outside Hand, All Green and Three/Four Kongs.
+  - `sg_tai` Singapore / Malaysia style, tai, minimum 1, limit 5. The fan add-ons are hidden for it.
 - **Hands:** each is a pattern built from a few engine primitives (all chows, all pungs, one suit,
   pung of a dragon, and so on) plus a value per scoring model, with optional open-hand values.
 - **Add-ons:** `rulesets/addons.json`. Small layers that add hands, change a value, or shift the
   threshold. They can declare `requires`, `conflicts` and `order`.
-- **Room options:** switch hands off and shift the threshold from the lobby.
+- **Room options:** switch hands off, shift the threshold and set a turn timer from the lobby.
+- **Turn timer:** off, or 10 to 60 seconds. When it runs out the server passes on a claim, or
+  throws the tile just drawn. The countdown restarts after every action.
 
 Changing any of this is a JSON edit. The engine only needs new code when a hand needs a new kind
 of pattern.
@@ -57,7 +62,7 @@ cd scripts/ui-smoke && npm install && npm test
 
 ## Scoring defaults
 
-The fan values and payout table in `hk_fan.json` are reasonable Hong Kong style defaults, not an
+The values and payout tables in the base files (`hk_fan`, `hk_classic`, `sg_tai`) are reasonable defaults, not an
 official rulebook. Payments: a self-drawn win is paid by each opponent, a win off a discard is paid
 in full by the discarder, and anything paid to or by the dealer is doubled.
 

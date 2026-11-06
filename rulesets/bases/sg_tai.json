@@ -1,0 +1,242 @@
+{
+  "id": "sg_tai",
+  "name": "Singapore / Malaysia (tai)",
+  "model": "tai",
+  "provides": [
+    "tai"
+  ],
+  "threshold": 1,
+  "limit": 5,
+  "payout": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "hands": [
+    {
+      "id": "self_draw",
+      "name": "Self-Drawn",
+      "pattern": {
+        "type": "self_draw"
+      },
+      "values": {
+        "tai": 1
+      }
+    },
+    {
+      "id": "concealed",
+      "name": "Concealed Hand",
+      "pattern": {
+        "type": "concealed"
+      },
+      "values": {
+        "tai": 1
+      }
+    },
+    {
+      "id": "dragon_pung",
+      "name": "Dragon Pung",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "dragon",
+        "min": 1
+      },
+      "values": {
+        "tai": 1
+      },
+      "per_match": true
+    },
+    {
+      "id": "seat_wind_pung",
+      "name": "Seat Wind Pung",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "seat_wind",
+        "min": 1
+      },
+      "values": {
+        "tai": 1
+      }
+    },
+    {
+      "id": "round_wind_pung",
+      "name": "Round Wind Pung",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "round_wind",
+        "min": 1
+      },
+      "values": {
+        "tai": 1
+      }
+    },
+    {
+      "id": "common_hand",
+      "name": "Common Hand",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "all_chows"
+          },
+          {
+            "type": "pair_is_not",
+            "filter": "value_tile"
+          }
+        ]
+      },
+      "values": {
+        "tai": 4
+      }
+    },
+    {
+      "id": "all_pungs",
+      "name": "All Pungs",
+      "pattern": {
+        "type": "all_pungs"
+      },
+      "values": {
+        "tai": 2
+      }
+    },
+    {
+      "id": "mixed_one_suit",
+      "name": "Mixed One Suit",
+      "pattern": {
+        "type": "one_suit",
+        "honors": true
+      },
+      "values": {
+        "tai": 2
+      }
+    },
+    {
+      "id": "pure_one_suit",
+      "name": "Pure One Suit",
+      "pattern": {
+        "type": "one_suit",
+        "honors": false
+      },
+      "values": {
+        "tai": 4
+      }
+    },
+    {
+      "id": "seven_pairs",
+      "name": "Seven Pairs",
+      "pattern": {
+        "type": "seven_pairs"
+      },
+      "values": {
+        "tai": 4
+      }
+    },
+    {
+      "id": "small_three_dragons",
+      "name": "Small Three Dragons",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "pung_count",
+            "filter": "dragon",
+            "min": 2
+          },
+          {
+            "type": "pair_is",
+            "filter": "dragon"
+          }
+        ]
+      },
+      "values": {
+        "tai": 4
+      },
+      "excludes": [
+        "dragon_pung"
+      ]
+    },
+    {
+      "id": "big_three_dragons",
+      "name": "Big Three Dragons",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "dragon",
+        "min": 3
+      },
+      "values": {
+        "tai": 5
+      },
+      "excludes": [
+        "dragon_pung"
+      ]
+    },
+    {
+      "id": "small_four_winds",
+      "name": "Small Four Winds",
+      "pattern": {
+        "type": "and",
+        "all": [
+          {
+            "type": "pung_count",
+            "filter": "wind",
+            "min": 3
+          },
+          {
+            "type": "pair_is",
+            "filter": "wind"
+          }
+        ]
+      },
+      "values": {
+        "tai": 5
+      }
+    },
+    {
+      "id": "big_four_winds",
+      "name": "Big Four Winds",
+      "pattern": {
+        "type": "pung_count",
+        "filter": "wind",
+        "min": 4
+      },
+      "values": {
+        "tai": 5
+      }
+    },
+    {
+      "id": "all_honors",
+      "name": "All Honors",
+      "pattern": {
+        "type": "all_tiles",
+        "filter": "honor"
+      },
+      "values": {
+        "tai": 5
+      }
+    },
+    {
+      "id": "all_terminals",
+      "name": "All Terminals",
+      "pattern": {
+        "type": "all_tiles",
+        "filter": "terminal"
+      },
+      "values": {
+        "tai": 5
+      }
+    },
+    {
+      "id": "thirteen_orphans",
+      "name": "Thirteen Orphans",
+      "pattern": {
+        "type": "thirteen_orphans"
+      },
+      "values": {
+        "tai": 5
+      }
+    }
+  ]
+}

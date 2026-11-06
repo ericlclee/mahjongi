@@ -1,4 +1,4 @@
-use mahjongi_server::{app, server::Server, spawn_sweeper};
+use mahjongi_server::{app, server::Server, spawn_sweeper, spawn_timer};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -12,6 +12,7 @@ async fn main() {
 
     let shared = Arc::new(Mutex::new(Server::new()));
     spawn_sweeper(shared.clone());
+    spawn_timer(shared.clone());
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await

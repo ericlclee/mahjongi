@@ -32,7 +32,7 @@ fn ids(result: &ScoreResult) -> Vec<&str> {
 
 #[test]
 fn builtin_data_loads() {
-    assert_eq!(builtin::bases().len(), 1);
+    assert_eq!(builtin::bases().len(), 3);
     assert_eq!(builtin::addons().len(), 4);
     let r = rules(&[], 0);
     assert_eq!(r.threshold, 3);

@@ -159,6 +159,7 @@
         S.state = msg;
         S.lobby = null;
         S.selected = null;
+        S.timerEnd = msg.turn_left_ms == null ? null : Date.now() + msg.turn_left_ms;
         break;
       case 'error':
         if (S.rejoining) {
@@ -175,6 +176,16 @@
     }
     render();
   }
+
+  // Countdown shown on the table; updated in place so the hand is not redrawn every tick.
+  setInterval(() => {
+    const el = document.getElementById('turn-timer');
+    if (!el) return;
+    if (S.timerEnd == null) { el.textContent = ''; return; }
+    const left = Math.max(0, Math.ceil((S.timerEnd - Date.now()) / 1000));
+    el.textContent = `⏱ ${left}s`;
+    el.className = 'timer' + (left <= 5 ? ' low' : '');
+  }, 250);
 
   function leave() {
     send({ type: 'leave' });
@@ -245,11 +256,18 @@
       update({ disabled_hands: list });
     };
 
+    const unit = L.rules.unit;
     const valueOf = (id) => L.rules.hands.find((x) => x.id === id);
     const players = h('ul', { class: 'players-list' }, L.players.map((p, i) =>
       h('li', {},
         h('span', {}, p ? p.name : 'Waiting for player…', i === L.seat ? ' (you)' : '', i === L.host ? ' ★' : ''),
         p ? h('span', { class: 'badge' + (p.connected ? '' : ' off') }, p.connected ? 'here' : 'away') : null)));
+
+    const rulesetBox = h('div', { class: 'card' },
+      h('h2', {}, 'Ruleset'),
+      h('select', { disabled: !isHost,
+        onchange: (e) => update({ base: e.target.value, addons: [], disabled_hands: [], threshold_offset: 0 }) },
+        L.bases.map((b) => h('option', { value: b.id, selected: b.id === st.base }, b.name))));
 
     const addonBox = h('div', { class: 'card' },
       h('h2', {}, 'Add-ons'),
@@ -261,11 +279,11 @@
 
     const handBox = h('div', { class: 'card handlist' },
       h('h2', {}, 'Hands that can win'),
-      h('p', { class: 'muted small' }, 'Switch hands off to stop them counting. Values are in fan (open hands in brackets when lower).'),
+      h('p', { class: 'muted small' }, `Switch hands off to stop them counting. Values are in ${unit} (open hands in brackets when lower).`),
       L.all_hands.map((hd) => {
         const on = !st.disabled_hands.includes(hd.id);
         const v = valueOf(hd.id);
-        const value = v ? (v.open_value !== v.value ? `${v.value} (${v.open_value}) fan` : `${v.value} fan`) : 'off';
+        const value = v ? (v.open_value !== v.value ? `${v.value} (${v.open_value}) ${unit}` : `${v.value} ${unit}`) : 'off';
         return h('label', {},
           h('input', { type: 'checkbox', checked: on, disabled: !isHost, onchange: (e) => toggleHand(hd.id, e.target.checked) }),
           h('span', { class: 'grow' }, hd.name), h('span', { class: 'badge' + (on ? '' : ' off') }, value));
@@ -277,7 +295,7 @@
         h('button', { class: 'secondary', disabled: !isHost, onclick: () => update({ threshold_offset: st.threshold_offset - 1 }) }, '−'),
         h('b', {}, L.rules.threshold),
         h('button', { class: 'secondary', disabled: !isHost, onclick: () => update({ threshold_offset: st.threshold_offset + 1 }) }, '+'),
-        h('span', { class: 'muted' }, 'fan (hands worth less cannot win; limit ' + L.rules.limit + ')')));
+        h('span', { class: 'muted' }, unit + ' (hands worth less cannot win; limit ' + L.rules.limit + ')')));
 
     const gameBox = h('div', { class: 'card' },
       h('h2', {}, 'Game'),
@@ -287,7 +305,12 @@
       h('div', { class: 'row' },
         h('span', {}, 'Wind rounds'),
         h('select', { disabled: !isHost, onchange: (e) => update({ rounds: Number(e.target.value) }) },
-          [1, 2, 3, 4].map((n) => h('option', { value: n, selected: n === st.rounds }, n === 1 ? '1 (East only)' : String(n))))));
+          [1, 2, 3, 4].map((n) => h('option', { value: n, selected: n === st.rounds }, n === 1 ? '1 (East only)' : String(n))))),
+      h('div', { class: 'row' },
+        h('span', {}, 'Turn timer'),
+        h('select', { disabled: !isHost, onchange: (e) => update({ turn_secs: Number(e.target.value) }) },
+          [0, 10, 15, 20, 30, 60].map((n) => h('option', { value: n, selected: n === st.turn_secs }, n === 0 ? 'Off' : `${n} seconds`)))),
+      st.turn_secs ? h('p', { class: 'muted small' }, 'If you run out of time the game passes on a claim, or throws the tile you just drew.') : null);
 
     return h('div', {},
       h('div', { class: 'topbar' }, h('h1', {}, '🀄 Room'), h('button', { class: 'secondary', onclick: leave }, 'Leave')),
@@ -298,7 +321,7 @@
           h('button', { class: 'secondary', onclick: () => copyInvite(L.code) }, 'Copy invite link')),
         players),
       isHost ? null : h('p', { class: 'muted' }, 'The host (★) chooses the rules and starts the game.'),
-      thresholdBox, addonBox, handBox, gameBox,
+      rulesetBox, thresholdBox, addonBox, handBox, gameBox,
       isHost ? h('button', { disabled: !L.can_start, onclick: () => send({ type: 'start' }) },
         L.can_start ? 'Start game' : 'Waiting for four players…') : null);
   }
@@ -414,14 +437,17 @@
         ? `${n(v.claim.from)} discarded ${tileText(v.claim.discard)} — do you want it?`
         : `Waiting for ${v.claim.waiting} player${v.claim.waiting === 1 ? '' : 's'} to decide…`;
     }
-    return h('div', { class: 'status' }, h('div', { class: 'muted small' }, ev), h('div', { class: 'big' }, line));
+    return h('div', { class: 'status' },
+      h('div', { class: 'muted small' }, ev),
+      h('div', { class: 'big' }, line),
+      m.turn_secs ? h('div', { id: 'turn-timer', class: 'timer' }) : null);
   }
 
   function rulesPanel(m) {
     const r = m.rules;
     return h('div', { class: 'card' },
       h('h2', {}, 'Rules in this game'),
-      h('p', { class: 'muted small' }, `You need ${r.threshold} fan to win (limit ${r.limit} fan).`),
+      h('p', { class: 'muted small' }, `You need ${r.threshold} ${r.unit} to win (limit ${r.limit} ${r.unit}).`),
       h('table', { class: 'matches' }, r.hands.map((x) => h('tr', {},
         h('td', {}, x.name), h('td', {}, x.open_value !== x.value ? `${x.value} (${x.open_value} open)` : String(x.value))))));
   }
@@ -434,7 +460,7 @@
       h('div', { class: 'topbar' },
         h('div', {},
           h('b', {}, `${WIND_EN[v.round_wind]} round · hand ${v.hand_no}`),
-          h('div', { class: 'muted small' }, `Wall ${v.wall_remaining} · need ${v.threshold} fan · room ${m.code}`)),
+          h('div', { class: 'muted small' }, `Wall ${v.wall_remaining} · need ${v.threshold} ${m.rules.unit} · room ${m.code}`)),
         h('div', { class: 'row' },
           h('button', { class: 'secondary', onclick: () => { S.showRules = !S.showRules; render(); } }, 'Rules'),
           h('button', { class: 'secondary', onclick: () => { if (window.confirm('Leave the game? You can rejoin from this device.')) leave(); } }, 'Leave'))),
@@ -468,8 +494,8 @@
         h('table', { class: 'matches' },
           w.matches.length ? w.matches.map((x) => h('tr', {},
             h('td', {}, x.name + (x.count > 1 ? ` ×${x.count}` : '') + (x.qualifying ? '' : ' (bonus)')),
-            h('td', {}, `${x.value} fan`))) : h('tr', {}, h('td', {}, 'No scoring hands'), h('td', {}, '0 fan')),
-          h('tr', {}, h('td', {}, h('b', {}, 'Total')), h('td', {}, `${w.value} fan = ${w.points} pts`))));
+            h('td', {}, `${x.value} ${m.rules.unit}`))) : h('tr', {}, h('td', {}, 'No scoring hands'), h('td', {}, `0 ${m.rules.unit}`)),
+          h('tr', {}, h('td', {}, h('b', {}, 'Total')), h('td', {}, `${w.value} ${m.rules.unit} = ${w.points} pts`))));
     } else {
       box.append(h('h2', {}, 'Drawn hand'), h('p', { class: 'muted' }, 'The wall ran out. Nobody wins and no points change hands.'));
     }

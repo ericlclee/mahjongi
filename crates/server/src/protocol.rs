@@ -11,6 +11,9 @@ pub struct RoomSettings {
     pub threshold_offset: i32,
     pub flowers: bool,
     pub rounds: u32,
+    /// Seconds each player gets to act; 0 means no limit.
+    #[serde(default)]
+    pub turn_secs: u32,
 }
 
 impl Default for RoomSettings {
@@ -22,6 +25,7 @@ impl Default for RoomSettings {
             threshold_offset: 0,
             flowers: false,
             rounds: 1,
+            turn_secs: 0,
         }
     }
 }
@@ -71,6 +75,12 @@ pub struct AddOnInfo {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct BaseInfo {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct HandValue {
     pub id: String,
     pub name: String,
@@ -80,6 +90,8 @@ pub struct HandValue {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RulesSummary {
+    /// What hands are counted in, e.g. "fan" or "tai".
+    pub unit: String,
     pub threshold: u32,
     pub limit: u32,
     pub payout: Vec<u32>,
@@ -106,6 +118,7 @@ pub enum ServerMsg {
         /// Every hand in the chosen base plus add-ons, before any are switched off.
         all_hands: Vec<HandRef>,
         addons: Vec<AddOnInfo>,
+        bases: Vec<BaseInfo>,
         can_start: bool,
     },
     State {
@@ -117,6 +130,10 @@ pub enum ServerMsg {
         /// Who has asked to continue to the next hand.
         acks: Vec<bool>,
         rules: RulesSummary,
+        /// Seconds allowed per decision; 0 means no limit.
+        turn_secs: u32,
+        /// Time left before the server plays for whoever is slow, when a timer is running.
+        turn_left_ms: Option<u64>,
         view: View,
     },
     Error {

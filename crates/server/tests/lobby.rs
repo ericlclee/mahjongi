@@ -288,3 +288,98 @@ fn lobby_seats_free_up_and_empty_rooms_vanish() {
     server.disconnect(newcomer.id);
     assert_eq!(server.room_count(), 0);
 }
+
+fn timed_settings(secs: u32) -> Value {
+    json!({
+        "base": "hk_fan", "addons": [], "disabled_hands": [],
+        "threshold_offset": 0, "flowers": false, "rounds": 1, "turn_secs": secs
+    })
+}
+
+#[test]
+fn turn_timer_must_be_off_or_a_sensible_length() {
+    let mut server = Server::new();
+    let (_, mut clients, _) = full_room(&mut server);
+    clients[0].drain();
+    send(
+        &mut server,
+        &clients[0],
+        json!({"type": "set_options", "settings": timed_settings(2)}),
+    );
+    assert!(error_text(&clients[0].drain())
+        .unwrap()
+        .contains("turn timer"));
+    send(
+        &mut server,
+        &clients[0],
+        json!({"type": "set_options", "settings": timed_settings(30)}),
+    );
+    let lobby = clients[0].last_of("lobby").expect("lobby");
+    assert_eq!(lobby["settings"]["turn_secs"], 30);
+}
+
+#[test]
+fn slow_players_are_played_for_when_the_timer_runs_out() {
+    let mut server = Server::new();
+    let (_, mut clients, _) = full_room(&mut server);
+    send(
+        &mut server,
+        &clients[0],
+        json!({"type": "set_options", "settings": timed_settings(10)}),
+    );
+    send(&mut server, &clients[0], json!({"type": "start"}));
+    let before = clients[0].last_of("state").expect("state");
+    assert_eq!(before["turn_secs"], 10);
+    let left = before["turn_left_ms"].as_u64().expect("timer is running");
+    assert!(left > 8_000 && left <= 10_000, "{left}");
+    assert!(!before["view"]["legal"].as_array().unwrap().is_empty());
+    clients.iter_mut().for_each(|c| {
+        c.drain();
+    });
+
+    // Nothing happens before the deadline.
+    server.tick_at(std::time::Instant::now() + std::time::Duration::from_secs(5));
+    assert!(clients[0].last_of("state").is_none());
+
+    // After it, the dealer's drawn tile is thrown and everyone sees the discard.
+    server.tick_at(std::time::Instant::now() + std::time::Duration::from_secs(11));
+    let after = clients[0].last_of("state").expect("table moves on");
+    assert_eq!(after["view"]["last_event"]["type"], "discard");
+    assert_eq!(after["view"]["last_event"]["tile"], before["view"]["drawn"]);
+}
+
+#[test]
+fn no_timer_means_no_deadline() {
+    let mut server = Server::new();
+    let (_, mut clients, _) = full_room(&mut server);
+    send(&mut server, &clients[0], json!({"type": "start"}));
+    let state = clients[0].last_of("state").expect("state");
+    assert_eq!(state["turn_secs"], 0);
+    assert!(state["turn_left_ms"].is_null());
+    clients.iter_mut().for_each(|c| {
+        c.drain();
+    });
+    server.tick_at(std::time::Instant::now() + std::time::Duration::from_secs(3600));
+    assert!(clients[0].last_of("state").is_none());
+}
+
+#[test]
+fn the_host_can_pick_another_ruleset() {
+    let mut server = Server::new();
+    let (_, mut clients, _) = full_room(&mut server);
+    let lobby = clients[0].last_of("lobby").expect("lobby");
+    assert!(lobby["bases"].as_array().unwrap().len() >= 3);
+    assert_eq!(lobby["rules"]["unit"], "fan");
+
+    let mut settings = timed_settings(0);
+    settings["base"] = json!("sg_tai");
+    send(
+        &mut server,
+        &clients[0],
+        json!({"type": "set_options", "settings": settings}),
+    );
+    let lobby = clients[1].last_of("lobby").expect("lobby");
+    assert_eq!(lobby["rules"]["unit"], "tai");
+    assert_eq!(lobby["rules"]["threshold"], 1);
+    assert!(lobby["addons"].as_array().unwrap().is_empty());
+}

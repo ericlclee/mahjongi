@@ -57,6 +57,8 @@ pub enum TileFilter {
     RoundWind,
     /// Dragons, plus the seat and round winds.
     ValueTile,
+    /// Green tiles: bamboo 2, 3, 4, 6, 8 and the green dragon.
+    Green,
 }
 
 impl TileFilter {
@@ -70,6 +72,7 @@ impl TileFilter {
             TileFilter::Simple => tile.is_simple(),
             TileFilter::SeatWind => tile == ctx.seat_wind,
             TileFilter::RoundWind => tile == ctx.round_wind,
+            TileFilter::Green => matches!(tile.index(), 19 | 20 | 21 | 23 | 25 | 32),
             TileFilter::ValueTile => {
                 tile.suit() == Suit::Dragon || tile == ctx.seat_wind || tile == ctx.round_wind
             }
@@ -103,6 +106,15 @@ pub enum Pattern {
     PungCount {
         filter: TileFilter,
         min: u32,
+    },
+    /// At least `min` kongs (of any tile).
+    KongCount {
+        min: u32,
+    },
+    /// Standard shape where every set and the pair contains a tile matching the filter
+    /// (for a chow, any of its three tiles).
+    EverySetHas {
+        filter: TileFilter,
     },
     PairIs {
         filter: TileFilter,
@@ -159,6 +171,23 @@ impl Pattern {
                     0
                 }
             }
+            Pattern::KongCount { min } => {
+                let n = standard(shape).map_or(0, |d| {
+                    d.sets.iter().filter(|s| s.kind == SetKind::Kong).count() as u32
+                });
+                if n >= *min {
+                    n
+                } else {
+                    0
+                }
+            }
+            Pattern::EverySetHas { filter } => standard(shape).map_or(0, |d| {
+                let has = |s: &Set| {
+                    let span = if s.kind == SetKind::Chow { 3 } else { 1 };
+                    (0..span).any(|i| filter.matches(s.tile.offset(i), ctx))
+                };
+                (d.sets.iter().all(has) && filter.matches(d.pair, ctx)) as u32
+            }),
             Pattern::PairIs { filter } => {
                 standard(shape).map_or(0, |d| filter.matches(d.pair, ctx) as u32)
             }

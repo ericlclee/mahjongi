@@ -103,3 +103,6 @@ label input { margin-top: 4px; }
 .pay { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 14px; margin: 8px 0; }
 .pay .num { text-align: right; font-weight: 700; }
 details summary { cursor: pointer; color: var(--muted); margin: 6px 0; }
+
+.timer { font-weight: 700; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+.timer.low { color: #c0392b; }

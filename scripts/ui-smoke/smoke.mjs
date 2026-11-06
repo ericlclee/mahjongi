@@ -107,6 +107,23 @@ try {
   for (const n of ['Bot1', 'Bot2', 'Bot3']) bots.push(startBot(code, n));
   await waitFor(() => button('Start game'), 'four players');
 
+  // pick another ruleset through the dropdown, check it counts in tai, then come back
+  const setSelect = (select, value) => {
+    select.value = value;
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  };
+  const rulesetSelect = () => $$('select').find((x) => [...x.options].some((o) => o.value === 'sg_tai'));
+  setSelect(await waitFor(rulesetSelect, 'ruleset picker'), 'sg_tai');
+  await waitFor(() => S().lobby.rules.unit === 'tai', 'switched to tai');
+  if (!$('.stepper').textContent.includes('tai')) throw new Error('lobby should show tai');
+  setSelect(rulesetSelect(), 'hk_fan');
+  await waitFor(() => S().lobby.rules.unit === 'fan', 'back to fan');
+
+  // turn timer
+  const timerSelect = $$('select').find((x) => [...x.options].some((o) => o.value === '30'));
+  setSelect(timerSelect, '60');
+  await waitFor(() => S().lobby.settings.turn_secs === 60, 'timer set');
+
   // change the threshold from 3 down to 0
   for (let want = 2; want >= 0; want--) {
     click(button('−'));
@@ -128,6 +145,8 @@ try {
 
   click(button('Start game'));
   await waitFor(() => S().state, 'game start');
+  if (S().state.turn_secs !== 60) throw new Error('timer should carry into the game');
+  await waitFor(() => $('#turn-timer') && /⏱ \d+s/.test($('#turn-timer').textContent), 'countdown shown');
 
   // play through the UI
   let wins = 0;
