@@ -6,7 +6,7 @@ use crate::rules::Ruleset;
 use std::collections::BTreeSet;
 use std::fmt;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize)]
 pub struct HandMatch {
     pub id: String,
     pub name: String,
