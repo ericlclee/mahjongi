@@ -22,14 +22,22 @@
 
   // ---------- helpers ----------
 
-  function safeGet(key) {
-    try { return localStorage.getItem(key); } catch (e) { return null; }
+  // The seat to rejoin is kept per tab (sessionStorage) so several tabs of one browser can
+  // play as different people; the player's name is shared (localStorage).
+  function safeGet(key, store) {
+    try { return (store || localStorage).getItem(key); } catch (e) { return null; }
   }
-  function safeSet(key, value) {
-    try { if (value == null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+  function safeSet(key, value, store) {
+    try {
+      const s = store || localStorage;
+      if (value == null) s.removeItem(key); else s.setItem(key, value);
+    } catch (e) { /* ignore */ }
   }
   function loadSession() {
-    try { return JSON.parse(safeGet(SAVE_KEY) || 'null'); } catch (e) { return null; }
+    try { return JSON.parse(safeGet(SAVE_KEY, sessionStorage) || 'null'); } catch (e) { return null; }
+  }
+  function saveSession(value) {
+    safeSet(SAVE_KEY, value, sessionStorage);
   }
 
   function h(tag, props, ...kids) {
@@ -141,7 +149,7 @@
     switch (msg.type) {
       case 'joined':
         S.rejoining = false;
-        safeSet(SAVE_KEY, JSON.stringify({ code: msg.code, token: msg.token, name: S.name }));
+        saveSession(JSON.stringify({ code: msg.code, token: msg.token, name: S.name }));
         break;
       case 'lobby':
         S.lobby = msg;
@@ -155,7 +163,7 @@
       case 'error':
         if (S.rejoining) {
           S.rejoining = false;
-          safeSet(SAVE_KEY, null);
+          saveSession(null);
           S.lobby = null;
           S.state = null;
         } else {
@@ -170,7 +178,7 @@
 
   function leave() {
     send({ type: 'leave' });
-    safeSet(SAVE_KEY, null);
+    saveSession(null);
     S.lobby = null;
     S.state = null;
     render();
