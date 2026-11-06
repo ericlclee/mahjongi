@@ -88,7 +88,11 @@ One scoring model per room. Rulesets using different models are not mixed.
 - **Account points (virtual currency):** score change / ruleset limit x per-room stake multiplier, with a cap or diminishing returns so one huge hand cannot dominate. Each ruleset defines a normalizing limit so results are comparable across rulesets. No cash-out.
 - **Elo:** computed from final placings (pairwise multiplayer Elo), tracked separately from account points: level vs skill.
 
-## v1: stateless version (current target)
+## v1: stateless version (built)
+
+Status: milestones 1 to 6 are done and tested. Four players can create a room, choose a base,
+add-ons, hand toggles and threshold, play full games in the browser, and see in-game scores. See
+`README.md` to run it. The web client is plain JS (no build step) rather than TypeScript.
 
 v1 remembers nothing once a game ends.
 

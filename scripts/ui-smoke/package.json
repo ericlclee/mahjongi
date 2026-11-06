@@ -1,0 +1,14 @@
+{
+  "name": "mahjongi-ui-smoke",
+  "private": true,
+  "type": "module",
+  "description": "Plays a full game through the real web UI (in jsdom) against a running server",
+  "scripts": {
+    "test": "node smoke.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0",
+    "playwright-core": "^1.65.0",
+    "ws": "^8.18.0"
+  }
+}
