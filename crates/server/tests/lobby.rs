@@ -383,3 +383,27 @@ fn the_host_can_pick_another_ruleset() {
     assert_eq!(lobby["rules"]["threshold"], 1);
     assert!(lobby["addons"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn the_table_does_not_wait_forever_on_a_disconnected_player() {
+    use std::time::{Duration, Instant};
+    let mut server = Server::new();
+    let (_, mut clients, _) = full_room(&mut server);
+    send(&mut server, &clients[0], json!({"type": "start"}));
+    // The dealer drops out right as it becomes their turn.
+    let dealer = clients.remove(0);
+    server.disconnect(dealer.id);
+    clients.iter_mut().for_each(|c| {
+        c.drain();
+    });
+
+    let t0 = Instant::now();
+    server.tick_at(t0);
+    server.tick_at(t0 + Duration::from_secs(5));
+    assert!(clients[0].last_of("state").is_none(), "grace period first");
+
+    server.tick_at(t0 + Duration::from_secs(11));
+    let state = clients[0].last_of("state").expect("server played for them");
+    assert_eq!(state["view"]["last_event"]["type"], "discard");
+    assert_eq!(state["view"]["last_event"]["seat"], 0);
+}

@@ -11,6 +11,8 @@ use tokio::sync::mpsc::UnboundedSender;
 
 pub type ConnId = u64;
 
+/// How long the table waits on a disconnected player before the server plays for them.
+const AWAY_GRACE: Duration = Duration::from_secs(10);
 const ROOM_IDLE_LIMIT: Duration = Duration::from_secs(15 * 60);
 
 struct Conn {
@@ -33,6 +35,8 @@ struct Room {
     acks: [bool; SEATS],
     /// When the server will play for whoever is still deciding.
     deadline: Option<Instant>,
+    /// Since when the table has been waiting on a disconnected player.
+    away_since: Option<Instant>,
     empty_since: Option<Instant>,
 }
 
@@ -148,23 +152,39 @@ impl Server {
     }
 
     pub fn tick_at(&mut self, now: Instant) {
-        let due: Vec<String> = self
-            .rooms
-            .iter()
-            .filter(|(_, r)| r.deadline.is_some_and(|d| d <= now))
-            .map(|(code, _)| code.clone())
-            .collect();
-        for code in due {
+        let codes: Vec<String> = self.rooms.keys().cloned().collect();
+        for code in codes {
             let Some(room) = self.rooms.get_mut(&code) else {
                 continue;
             };
-            if let Some(game) = room.game.as_mut() {
-                for seat in game.waiting_seats() {
-                    if let Some(action) = timeout_action(game, seat) {
-                        let _ = game.apply(seat, action);
-                    }
+            let Some(game) = room.game.as_mut() else {
+                continue;
+            };
+            let waiting = game.waiting_seats();
+            let away: Vec<usize> = waiting
+                .iter()
+                .copied()
+                .filter(|&s| room.seats[s].as_ref().is_none_or(|i| i.conn.is_none()))
+                .collect();
+            if away.is_empty() {
+                room.away_since = None;
+            } else if room.away_since.is_none() {
+                room.away_since = Some(now);
+            }
+
+            let timer_up = room.deadline.is_some_and(|d| d <= now);
+            let away_up = room.away_since.is_some_and(|t| now >= t + AWAY_GRACE);
+            if !timer_up && !away_up {
+                continue;
+            }
+            // A timeout plays for everyone still deciding; an absence only for the absent.
+            let seats = if timer_up { waiting } else { away };
+            for seat in seats {
+                if let Some(action) = timeout_action(game, seat) {
+                    let _ = game.apply(seat, action);
                 }
             }
+            room.away_since = None;
             room.reset_deadline();
             self.broadcast(&code);
         }
@@ -215,6 +235,7 @@ impl Server {
                 game: None,
                 acks: [false; SEATS],
                 deadline: None,
+                away_since: None,
                 empty_since: None,
             },
         );
