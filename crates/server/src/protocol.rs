@@ -51,6 +51,12 @@ pub enum ClientMsg {
     },
     /// Stretch the pause after a discard (only if you could claim the tile).
     Hold,
+    /// Host only, in the lobby: put a bot in the first empty seat.
+    AddBot,
+    /// Host only, in the lobby: take the bot in `seat` off the table.
+    RemoveBot {
+        seat: usize,
+    },
     NextHand,
     Leave,
     Ping,
@@ -60,6 +66,7 @@ pub enum ClientMsg {
 pub struct PlayerInfo {
     pub name: String,
     pub connected: bool,
+    pub bot: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -131,6 +138,8 @@ pub enum ServerMsg {
         connected: Vec<bool>,
         /// Who has asked to continue to the next hand.
         acks: Vec<bool>,
+        /// Which seats the server plays.
+        bots: Vec<bool>,
         rules: RulesSummary,
         /// Seconds allowed per decision; 0 means no limit.
         turn_secs: u32,

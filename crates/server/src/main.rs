@@ -25,7 +25,8 @@ async fn main() {
     let server = Server::with_claim_window(
         secs("CLAIM_WINDOW_SECS", CLAIM_WINDOW),
         secs("CLAIM_HOLD_SECS", CLAIM_HOLD),
-    );
+    )
+    .with_bot_delay(secs("BOT_DELAY_SECS", Duration::from_millis(800)));
     let shared = Arc::new(Mutex::new(server));
     spawn_sweeper(shared.clone());
     spawn_timer(shared.clone());

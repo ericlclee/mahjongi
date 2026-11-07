@@ -553,3 +553,80 @@ fn claiming_during_the_pause_does_not_wait_for_it_to_end() {
     }
     panic!("nobody could ever claim a discard");
 }
+
+#[test]
+fn the_host_can_fill_the_table_with_bots_and_watch_them_play() {
+    use std::time::{Duration, Instant};
+    let mut server = Server::new().with_bot_delay(Duration::from_millis(500));
+    let mut host = Client::new(&mut server);
+    send(
+        &mut server,
+        &host,
+        json!({"type": "create", "name": "Eric"}),
+    );
+    let mut guest = Client::new(&mut server);
+    send(&mut server, &guest, json!({"type": "add_bot"}));
+    for _ in 0..3 {
+        send(&mut server, &host, json!({"type": "add_bot"}));
+    }
+    let lobby = host.last_of("lobby").expect("lobby");
+    assert_eq!(lobby["can_start"], true);
+    assert_eq!(lobby["players"][1]["bot"], true);
+    assert_eq!(lobby["players"][1]["connected"], true);
+    assert_eq!(lobby["players"][3]["name"], "Bot 3");
+    send(&mut server, &host, json!({"type": "add_bot"}));
+    assert!(error_text(&host.drain()).unwrap().contains("full"));
+
+    // Removing a bot frees its seat; adding again fills it.
+    send(&mut server, &host, json!({"type": "remove_bot", "seat": 2}));
+    assert_eq!(host.last_of("lobby").unwrap()["can_start"], false);
+    send(&mut server, &host, json!({"type": "remove_bot", "seat": 0}));
+    assert!(error_text(&host.drain()).unwrap().contains("not a bot"));
+    send(&mut server, &host, json!({"type": "add_bot"}));
+    let _ = guest.drain();
+
+    send(&mut server, &host, json!({"type": "start"}));
+    let mut t = Instant::now();
+    let mut human_turns = 0;
+    let mut bot_moves = 0;
+    let mut finished = false;
+    for _ in 0..20000 {
+        let Some(state) = host.last_of("state") else {
+            t += Duration::from_millis(600);
+            server.tick_at(t);
+            bot_moves += 1;
+            continue;
+        };
+        if state["view"]["phase"] == "game_over" {
+            finished = true;
+            break;
+        }
+        if state["view"]["phase"] == "hand_over" {
+            send(&mut server, &host, json!({"type": "next_hand"}));
+            continue;
+        }
+        let legal = state["view"]["legal"].as_array().unwrap().clone();
+        if let Some(a) = legal
+            .iter()
+            .find(|a| a["type"] == "discard")
+            .or(legal.last())
+        {
+            human_turns += 1;
+            send(&mut server, &host, json!({"type": "act", "action": a}));
+        } else {
+            // Bots do nothing until their delay has passed.
+            server.tick_at(t + Duration::from_millis(100));
+            t += Duration::from_millis(600);
+            server.tick_at(t);
+            bot_moves += 1;
+        }
+    }
+    assert!(
+        finished,
+        "the game should finish with three bots at the table"
+    );
+    assert!(
+        human_turns > 3 && bot_moves > 10,
+        "{human_turns} {bot_moves}"
+    );
+}

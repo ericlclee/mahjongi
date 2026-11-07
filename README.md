@@ -37,6 +37,9 @@ A `Dockerfile` is included, plus `render.yaml` (Render: New > Blueprint > pick t
 - **Add-ons:** `rulesets/addons.json`. Small layers that add hands, change a value, or shift the
   threshold. They can declare `requires`, `conflicts` and `order`.
 - **Room options:** switch hands off, shift the threshold and set a turn timer from the lobby.
+- **Bots:** the host can tap "Add a bot" in the lobby to fill empty seats. Bots win when they
+  can, take every pung and chow, and throw from the suit they hold fewest of. They wait 0.8
+  seconds before each move so you can follow along (`BOT_DELAY_SECS` changes that).
 - **Pause after discards:** every discard waits 3 seconds before the next draw, whether or not
   anyone can claim it, so the pause gives nothing away. Anyone who could claim the tile can tap
   Hold to stretch it to 10 seconds; nobody is told who. A claim made during the pause happens at

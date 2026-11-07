@@ -29,6 +29,15 @@ struct SeatInfo {
     name: String,
     token: String,
     conn: Option<ConnId>,
+    /// Played by the server, never by a connection.
+    bot: bool,
+}
+
+impl SeatInfo {
+    /// A human whose connection has dropped.
+    fn is_away(&self) -> bool {
+        !self.bot && self.conn.is_none()
+    }
 }
 
 struct Room {
@@ -43,6 +52,8 @@ struct Room {
     away_since: Option<Instant>,
     /// The pause after a discard, while it is open.
     window: Option<ClaimWindow>,
+    /// When the bots who have to decide will act.
+    bot_due: Option<Instant>,
     empty_since: Option<Instant>,
 }
 
@@ -61,6 +72,8 @@ pub struct Server {
     /// Pause after each discard; zero turns the pause off.
     claim_window: Duration,
     claim_hold: Duration,
+    /// How long bots wait before acting, so people can follow what they do.
+    bot_delay: Duration,
 }
 
 impl Room {
@@ -163,7 +176,14 @@ impl Server {
             addons: builtin::addons(),
             claim_window: window,
             claim_hold: hold.max(window),
+            bot_delay: Duration::ZERO,
         }
+    }
+
+    /// Make bots wait this long before each action.
+    pub fn with_bot_delay(mut self, delay: Duration) -> Server {
+        self.bot_delay = delay;
+        self
     }
 
     fn window_end(&self, w: &ClaimWindow) -> Instant {
@@ -231,10 +251,28 @@ impl Server {
                 continue;
             }
             let waiting = game.waiting_seats();
+            let bots: Vec<usize> = waiting
+                .iter()
+                .copied()
+                .filter(|&s| room.seats[s].as_ref().is_some_and(|i| i.bot))
+                .collect();
+            if bots.is_empty() {
+                room.bot_due = None;
+            } else if *room.bot_due.get_or_insert(now + self.bot_delay) <= now {
+                for seat in bots {
+                    if let Some(action) = mahjongi_engine::simple_bot::eager(game, seat) {
+                        let _ = game.apply(seat, action);
+                    }
+                }
+                room.bot_due = None;
+                room.reset_deadline();
+                self.broadcast(&code);
+                continue;
+            }
             let away: Vec<usize> = waiting
                 .iter()
                 .copied()
-                .filter(|&s| room.seats[s].as_ref().is_none_or(|i| i.conn.is_none()))
+                .filter(|&s| room.seats[s].as_ref().is_none_or(SeatInfo::is_away))
                 .collect();
             if away.is_empty() {
                 room.away_since = None;
@@ -272,6 +310,8 @@ impl Server {
             ClientMsg::Start => self.start(conn),
             ClientMsg::Act { action } => self.act(conn, action),
             ClientMsg::Hold => self.hold(conn),
+            ClientMsg::AddBot => self.add_bot(conn),
+            ClientMsg::RemoveBot { seat } => self.remove_bot(conn, seat),
             ClientMsg::NextHand => self.next_hand(conn),
             ClientMsg::Leave => self.leave(conn),
             ClientMsg::Ping => Ok(()),
@@ -296,6 +336,7 @@ impl Server {
             name,
             token: token.clone(),
             conn: Some(conn),
+            bot: false,
         });
         self.rooms.insert(
             code.clone(),
@@ -308,6 +349,7 @@ impl Server {
                 deadline: None,
                 away_since: None,
                 window: None,
+                bot_due: None,
                 empty_since: None,
             },
         );
@@ -362,6 +404,7 @@ impl Server {
                     name,
                     token: token.clone(),
                     conn: Some(conn),
+                    bot: false,
                 });
                 (seat, token, None)
             }
@@ -458,6 +501,55 @@ impl Server {
         Ok(())
     }
 
+    /// The host fills the first empty seat with a bot.
+    fn add_bot(&mut self, conn: ConnId) -> Result<(), String> {
+        let (code, seat) = self.location(conn)?;
+        let room = self.rooms.get_mut(&code).expect("room exists");
+        if seat != room.host {
+            return Err("only the host can add bots".to_string());
+        }
+        if room.game.is_some() {
+            return Err("bots can only join before the game starts".to_string());
+        }
+        let free = room
+            .seats
+            .iter()
+            .position(Option::is_none)
+            .ok_or("the table is full")?;
+        let number = room.seats.iter().flatten().filter(|s| s.bot).count() + 1;
+        room.seats[free] = Some(SeatInfo {
+            name: format!("Bot {number}"),
+            token: random_token(),
+            conn: None,
+            bot: true,
+        });
+        self.broadcast(&code);
+        Ok(())
+    }
+
+    /// The host takes a bot off the table again.
+    fn remove_bot(&mut self, conn: ConnId, target: usize) -> Result<(), String> {
+        let (code, seat) = self.location(conn)?;
+        let room = self.rooms.get_mut(&code).expect("room exists");
+        if seat != room.host {
+            return Err("only the host can remove bots".to_string());
+        }
+        if room.game.is_some() {
+            return Err("bots cannot leave a game in progress".to_string());
+        }
+        if !room
+            .seats
+            .get(target)
+            .and_then(Option::as_ref)
+            .is_some_and(|s| s.bot)
+        {
+            return Err("that seat is not a bot".to_string());
+        }
+        room.seats[target] = None;
+        self.broadcast(&code);
+        Ok(())
+    }
+
     /// Stretch the pause after a discard. Only someone who could claim it may, once per
     /// discard; the others just see the countdown get longer.
     fn hold(&mut self, conn: ConnId) -> Result<(), String> {
@@ -544,7 +636,11 @@ impl Server {
         if room.game.is_none() {
             room.seats[seat] = None;
             if room.host == seat {
-                if let Some(next) = room.seats.iter().position(Option::is_some) {
+                if let Some(next) = room
+                    .seats
+                    .iter()
+                    .position(|s| s.as_ref().is_some_and(|s| !s.bot))
+                {
                     room.host = next;
                 }
             }
@@ -630,7 +726,12 @@ impl Server {
                 connected: room
                     .seats
                     .iter()
-                    .map(|s| s.as_ref().is_some_and(|s| s.conn.is_some()))
+                    .map(|s| s.as_ref().is_some_and(|s| !s.is_away()))
+                    .collect(),
+                bots: room
+                    .seats
+                    .iter()
+                    .map(|s| s.as_ref().is_some_and(|s| s.bot))
                     .collect(),
                 acks: room.acks.to_vec(),
                 rules: Self::summary(&rules),
@@ -663,7 +764,8 @@ impl Server {
                 .map(|s| {
                     s.as_ref().map(|s| PlayerInfo {
                         name: s.name.clone(),
-                        connected: s.conn.is_some(),
+                        connected: !s.is_away(),
+                        bot: s.bot,
                     })
                 })
                 .collect(),

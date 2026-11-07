@@ -156,6 +156,7 @@
         S.state = null;
         break;
       case 'state':
+        if (msg.bots) msg.names = msg.names.map((name, i) => (msg.bots[i] ? '🤖 ' + name : name));
         S.state = msg;
         S.lobby = null;
         S.selected = null;
@@ -267,8 +268,13 @@
     const valueOf = (id) => L.rules.hands.find((x) => x.id === id);
     const players = h('ul', { class: 'players-list' }, L.players.map((p, i) =>
       h('li', {},
-        h('span', {}, p ? p.name : 'Waiting for player…', i === L.seat ? ' (you)' : '', i === L.host ? ' ★' : ''),
-        p ? h('span', { class: 'badge' + (p.connected ? '' : ' off') }, p.connected ? 'here' : 'away') : null)));
+        h('span', {}, p ? (p.bot ? '🤖 ' : '') + p.name : 'Waiting for player…', i === L.seat ? ' (you)' : '', i === L.host ? ' ★' : ''),
+        p && p.bot && isHost
+          ? h('button', { class: 'secondary small', title: 'Remove this bot', onclick: () => send({ type: 'remove_bot', seat: i }) }, 'Remove')
+          : p ? h('span', { class: 'badge' + (p.connected ? '' : ' off') }, p.bot ? 'bot' : p.connected ? 'here' : 'away') : null)));
+    const addBot = isHost && L.players.some((p) => !p)
+      ? h('button', { class: 'secondary', onclick: () => send({ type: 'add_bot' }) }, '🤖 Add a bot')
+      : null;
 
     const rulesetBox = h('div', { class: 'card' },
       h('h2', {}, 'Ruleset'),
@@ -326,7 +332,9 @@
         h('div', { class: 'code' }, L.code),
         h('div', { class: 'row' },
           h('button', { class: 'secondary', onclick: () => copyInvite(L.code) }, 'Copy invite link')),
-        players),
+        players, addBot,
+        isHost && L.players.some((p) => !p) ? h('p', { class: 'muted small' },
+          'Bots win when they can, take every pung and chow, and throw from their smallest suit.') : null),
       isHost ? null : h('p', { class: 'muted' }, 'The host (★) chooses the rules and starts the game.'),
       rulesetBox, thresholdBox, addonBox, handBox, gameBox,
       isHost ? h('button', { disabled: !L.can_start, onclick: () => send({ type: 'start' }) },
