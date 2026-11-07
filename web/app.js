@@ -160,6 +160,7 @@
         S.lobby = null;
         S.selected = null;
         S.timerEnd = msg.turn_left_ms == null ? null : Date.now() + msg.turn_left_ms;
+        S.claimEnd = msg.claim_left_ms == null ? null : Date.now() + msg.claim_left_ms;
         break;
       case 'error':
         if (S.rejoining) {
@@ -181,6 +182,12 @@
   setInterval(() => {
     const el = document.getElementById('turn-timer');
     if (!el) return;
+    if (S.claimEnd != null) {
+      const left = Math.max(0, Math.ceil((S.claimEnd - Date.now()) / 1000));
+      el.textContent = `Next draw in ${left}s`;
+      el.className = 'timer';
+      return;
+    }
     if (S.timerEnd == null) { el.textContent = ''; return; }
     const left = Math.max(0, Math.ceil((S.timerEnd - Date.now()) / 1000));
     el.textContent = `⏱ ${left}s`;
@@ -392,6 +399,10 @@
       buttons.push(h('button', { onclick: () => act(a) }, 'Chow ',
         [0, 1, 2].map((i) => tileEl(a.low + i, { size: 'mini', hot: v.claim && a.low + i === v.claim.discard }))));
     }
+    if (m.can_hold) {
+      buttons.push(h('button', { class: 'secondary', title: 'Stretch the pause to 10 seconds. Nobody is told who did.',
+        onclick: () => send({ type: 'hold' }) }, '✋ Hold'));
+    }
     if (legal.some((a) => a.type === 'pass')) {
       buttons.push(h('button', { class: 'secondary', onclick: () => act({ type: 'pass' }) }, 'Pass'));
     }
@@ -433,14 +444,15 @@
         ? (v.legal.length ? 'Your turn — tap a tile twice to discard it' : 'Your turn')
         : `Waiting for ${n(v.turn)}…`;
     } else if (v.phase === 'claim') {
+      // Never say how many people could claim: that would give their hands away.
       line = v.legal.length
         ? `${n(v.claim.from)} discarded ${tileText(v.claim.discard)} — do you want it?`
-        : `Waiting for ${v.claim.waiting} player${v.claim.waiting === 1 ? '' : 's'} to decide…`;
+        : `${n(v.claim.from)} discarded ${tileText(v.claim.discard)}`;
     }
     return h('div', { class: 'status' },
       h('div', { class: 'muted small' }, ev),
       h('div', { class: 'big' }, line),
-      m.turn_secs ? h('div', { id: 'turn-timer', class: 'timer' }) : null);
+      m.turn_secs || m.claim_left_ms != null ? h('div', { id: 'turn-timer', class: 'timer' }) : null);
   }
 
   function rulesPanel(m) {

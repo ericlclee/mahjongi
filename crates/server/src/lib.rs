@@ -39,10 +39,10 @@ pub fn spawn_sweeper(shared: Shared) {
     });
 }
 
-/// Once a second, play for anyone who has run out of time on a room's turn timer.
+/// Five times a second, close claim windows and play for anyone who has run out of time on a room's turn timer.
 pub fn spawn_timer(shared: Shared) {
     tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_secs(1));
+        let mut tick = tokio::time::interval(Duration::from_millis(200));
         loop {
             tick.tick().await;
             shared.lock().expect("server lock").tick();

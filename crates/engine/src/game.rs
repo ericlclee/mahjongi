@@ -24,6 +24,10 @@ pub struct GameConfig {
     pub rounds: u32,
     /// Payments to or from the dealer are doubled.
     pub dealer_double: bool,
+    /// After every discard, wait for `close_claims` before the next draw, even when nobody
+    /// can claim, so the pause does not reveal who could. Answers that claim the tile still
+    /// resolve as soon as everyone eligible has answered.
+    pub claim_window: bool,
     pub seed: u64,
 }
 
@@ -34,6 +38,7 @@ impl GameConfig {
             flowers: false,
             rounds: 1,
             dealer_double: true,
+            claim_window: false,
             seed,
         }
     }
@@ -64,8 +69,13 @@ pub enum Action {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Step {
-    Act { seat: usize, action: Action },
+    Act {
+        seat: usize,
+        action: Action,
+    },
     NextHand,
+    /// The claim window closed; anyone who had not answered passes.
+    CloseClaims,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
@@ -247,6 +257,7 @@ impl Game {
             match *step {
                 Step::Act { seat, action } => game.apply(seat, action)?,
                 Step::NextHand => game.next_hand()?,
+                Step::CloseClaims => game.close_claims()?,
             }
         }
         Ok(game)
@@ -357,6 +368,22 @@ impl Game {
         Ok(())
     }
 
+    /// True while a discard is waiting to be claimed or passed on.
+    pub fn in_claim(&self) -> bool {
+        matches!(self.phase, Phase::Claim(_))
+    }
+
+    /// End the claim window: anyone who has not answered passes, and the best claim (or the
+    /// next draw) happens.
+    pub fn close_claims(&mut self) -> Result<(), GameError> {
+        if !self.in_claim() {
+            return Err(GameError::Illegal);
+        }
+        self.history.push(Step::CloseClaims);
+        self.resolve_claim();
+        Ok(())
+    }
+
     /// Start the next hand once a hand has finished.
     pub fn next_hand(&mut self) -> Result<(), GameError> {
         if !self.is_between_hands() {
@@ -428,7 +455,7 @@ impl Game {
                 options.push((seat, opts));
             }
         }
-        if options.is_empty() {
+        if options.is_empty() && !self.config.claim_window {
             self.next_draw((from + 1) % SEATS);
         } else {
             self.phase = Phase::Claim(Claim {
@@ -466,10 +493,15 @@ impl Game {
             };
             claim.responses.push((seat, action));
             claim.responses.len() == claim.options.len()
+                && (!self.config.claim_window
+                    || claim.responses.iter().any(|(_, a)| *a != Action::Pass))
         };
-        if !finished {
-            return;
+        if finished {
+            self.resolve_claim();
         }
+    }
+
+    fn resolve_claim(&mut self) {
         let Phase::Claim(claim) = self.phase.clone() else {
             return;
         };
@@ -794,7 +826,12 @@ impl Game {
             Phase::Claim(c) => Some(ClaimView {
                 discard: c.discard,
                 from: c.from,
-                waiting: c.options.len() - c.responses.len(),
+                // With a claim window the count would reveal who holds what, so hide it.
+                waiting: if self.config.claim_window {
+                    0
+                } else {
+                    c.options.len() - c.responses.len()
+                },
             }),
             _ => None,
         };
@@ -927,6 +964,54 @@ mod tests {
         assert_eq!(game.players[1].melds, vec![]);
         assert!(game.players[0].discards.is_empty());
         assert_eq!(game.waiting_seats(), vec![2]);
+    }
+
+    fn windowed_game() -> Game {
+        let mut config = game_with_threshold(0).config.clone();
+        config.claim_window = true;
+        Game::new(config)
+    }
+
+    #[test]
+    fn claim_window_waits_even_when_nobody_can_claim() {
+        let mut game = windowed_game();
+        let nine_s = Tile::new(26).unwrap();
+        game.players[0].hand.add(nine_s);
+        for s in 1..SEATS {
+            set_hand(&mut game, s, "1112223334445z");
+        }
+        game.apply(0, Action::Discard { tile: nine_s }).unwrap();
+        assert!(game.in_claim());
+        assert!(game.waiting_seats().is_empty());
+        assert_eq!(game.view(2).claim.unwrap().waiting, 0);
+
+        game.close_claims().unwrap();
+        assert!(!game.in_claim());
+        assert_eq!(game.view(1).turn, Some(1));
+        assert!(game.close_claims().is_err());
+    }
+
+    #[test]
+    fn claim_window_holds_after_passes_but_not_after_a_pung() {
+        let five_p = Tile::new(13).unwrap();
+
+        let mut game = windowed_game();
+        game.players[0].hand.add(five_p);
+        set_hand(&mut game, 2, "55p");
+        game.apply(0, Action::Discard { tile: five_p }).unwrap();
+        game.apply(2, Action::Pass).unwrap();
+        // Everyone eligible passed, but the window is still open.
+        assert!(game.in_claim());
+        game.close_claims().unwrap();
+        assert_eq!(game.view(1).turn, Some(1));
+
+        let mut game = windowed_game();
+        game.players[0].hand.add(five_p);
+        set_hand(&mut game, 2, "55p");
+        game.apply(0, Action::Discard { tile: five_p }).unwrap();
+        game.apply(2, Action::Pung).unwrap();
+        assert!(!game.in_claim(), "a claim does not wait for the window");
+        assert_eq!(game.view(2).turn, Some(2));
     }
 
     #[test]

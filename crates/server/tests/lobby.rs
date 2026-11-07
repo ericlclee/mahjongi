@@ -407,3 +407,149 @@ fn the_table_does_not_wait_forever_on_a_disconnected_player() {
     assert_eq!(state["view"]["last_event"]["type"], "discard");
     assert_eq!(state["view"]["last_event"]["seat"], 0);
 }
+
+/// Latest state each client has been sent (keeps the previous one if nothing new arrived).
+fn states(clients: &mut [Client], last: &mut [Value]) {
+    for (i, c) in clients.iter_mut().enumerate() {
+        if let Some(s) = c.last_of("state") {
+            last[i] = s;
+        }
+    }
+}
+
+#[test]
+fn discards_pause_and_a_claimer_can_hold_the_pause_silently() {
+    use std::time::{Duration, Instant};
+    let mut server = Server::with_claim_window(Duration::from_secs(3), Duration::from_secs(10));
+    let (_, mut clients, _) = full_room(&mut server);
+    send(&mut server, &clients[0], json!({"type": "start"}));
+    let mut last = vec![Value::Null; 4];
+    states(&mut clients, &mut last);
+
+    for _ in 0..200 {
+        // Whoever is on turn throws a tile.
+        let turn = last[0]["view"]["turn"].as_u64().expect("someone's turn") as usize;
+        let legal = last[turn]["view"]["legal"].as_array().unwrap().clone();
+        let discard = legal
+            .iter()
+            .find(|a| a["type"] == "discard")
+            .expect("can discard")
+            .clone();
+        send(
+            &mut server,
+            &clients[turn],
+            json!({"type": "act", "action": discard}),
+        );
+        states(&mut clients, &mut last);
+        assert_eq!(last[0]["view"]["phase"], "claim", "every discard pauses");
+        let left = last[0]["claim_left_ms"].as_u64().expect("window open");
+        assert!(left <= 3000 && left > 2000, "{left}");
+
+        let holder = (0..4).find(|&s| last[s]["can_hold"] == true);
+        let Some(holder) = holder else {
+            // Nothing happens until the window closes.
+            server.tick_at(Instant::now() + Duration::from_secs(1));
+            states(&mut clients, &mut last);
+            assert_eq!(last[0]["view"]["phase"], "claim");
+            server.tick_at(Instant::now() + Duration::from_millis(3100));
+            states(&mut clients, &mut last);
+            if last[0]["view"]["phase"] != "discard" {
+                return; // the hand ended on the wall; good enough
+            }
+            continue;
+        };
+
+        // Someone who cannot claim may not hold.
+        let bystander = (0..4).find(|&s| last[s]["can_hold"] != true).unwrap();
+        send(&mut server, &clients[bystander], json!({"type": "hold"}));
+        assert!(error_text(&clients[bystander].drain())
+            .unwrap()
+            .contains("only hold"));
+
+        send(&mut server, &clients[holder], json!({"type": "hold"}));
+        states(&mut clients, &mut last);
+        for state in &last {
+            let left = state["claim_left_ms"].as_u64().unwrap();
+            assert!(left > 9000, "everyone sees the longer pause: {left}");
+            assert_eq!(state["can_hold"], false, "only one hold per discard");
+        }
+        // Past the normal three seconds the tile is still up for grabs...
+        server.tick_at(Instant::now() + Duration::from_secs(5));
+        states(&mut clients, &mut last);
+        assert_eq!(last[0]["view"]["phase"], "claim");
+        // ...until the held window runs out.
+        server.tick_at(Instant::now() + Duration::from_millis(10_100));
+        states(&mut clients, &mut last);
+        assert_ne!(last[0]["view"]["phase"], "claim");
+        return;
+    }
+    panic!("nobody could ever claim a discard");
+}
+
+#[test]
+fn claiming_during_the_pause_does_not_wait_for_it_to_end() {
+    use std::time::Duration;
+    let mut server = Server::with_claim_window(Duration::from_secs(3), Duration::from_secs(10));
+    let (_, mut clients, _) = full_room(&mut server);
+    send(&mut server, &clients[0], json!({"type": "start"}));
+    let mut last = vec![Value::Null; 4];
+    states(&mut clients, &mut last);
+    for _ in 0..200 {
+        let turn = last[0]["view"]["turn"].as_u64().unwrap() as usize;
+        let discard = last[turn]["view"]["legal"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["type"] == "discard")
+            .unwrap()
+            .clone();
+        send(
+            &mut server,
+            &clients[turn],
+            json!({"type": "act", "action": discard}),
+        );
+        states(&mut clients, &mut last);
+        let claimer = (0..4).find(|&s| {
+            last[s]["view"]["legal"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|a| a["type"] == "pung" || a["type"] == "chow")
+        });
+        if let Some(c) = claimer {
+            let action = last[c]["view"]["legal"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|a| a["type"] == "pung" || a["type"] == "chow")
+                .unwrap()
+                .clone();
+            // Everyone else eligible passes, then the claim lands straight away.
+            for s in 0..4 {
+                if s != c && !last[s]["view"]["legal"].as_array().unwrap().is_empty() {
+                    send(
+                        &mut server,
+                        &clients[s],
+                        json!({"type": "act", "action": {"type": "pass"}}),
+                    );
+                }
+            }
+            send(
+                &mut server,
+                &clients[c],
+                json!({"type": "act", "action": action}),
+            );
+            states(&mut clients, &mut last);
+            assert_eq!(last[0]["view"]["phase"], "discard");
+            assert_eq!(last[0]["view"]["turn"], c);
+            assert!(last[0]["claim_left_ms"].is_null());
+            return;
+        }
+        server.tick_at(std::time::Instant::now() + Duration::from_millis(3100));
+        states(&mut clients, &mut last);
+        if last[0]["view"]["phase"] != "discard" {
+            return;
+        }
+    }
+    panic!("nobody could ever claim a discard");
+}

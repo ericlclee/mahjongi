@@ -67,7 +67,7 @@ function startBot(code, name) {
 console.log('building server…');
 execSync('cargo build -p mahjongi-server', { cwd: root, stdio: 'inherit' });
 const server = spawn(path.join(root, 'target/debug/mahjongi-server'), [], {
-  env: { ...process.env, PORT: String(PORT), WEB_DIR: path.join(root, 'web') },
+  env: { CLAIM_WINDOW_SECS: '0', ...process.env, PORT: String(PORT), WEB_DIR: path.join(root, 'web') },
   stdio: 'inherit',
 });
 const bots = [];
@@ -149,12 +149,17 @@ try {
   await waitFor(() => $('#turn-timer') && /⏱ \d+s/.test($('#turn-timer').textContent), 'countdown shown');
 
   // play through the UI
+  const windowed = Number(process.env.CLAIM_WINDOW_SECS || 0) > 0;
   let wins = 0;
+  let sawPause = false;
+  let holds = 0;
   let overlaysSeen = 0;
   let lastOverlayKey = '';
   const started = Date.now();
   while (!$$('h3').some((h) => h.textContent === 'Final standings')) {
     if (Date.now() - started > 150000) throw new Error('game did not finish');
+    // With the pause on, one full hand (with a hold) is enough; a whole game takes minutes.
+    if (windowed && sawPause && holds && overlaysSeen >= 1) break;
     const overlay = $('.overlay');
     if (overlay) {
       const key = S().state.view.hand_no + ':' + S().state.view.phase;
@@ -169,7 +174,16 @@ try {
       continue;
     }
     const view = S().state.view;
+    const timer = $('#turn-timer');
+    if (timer && timer.textContent.startsWith('Next draw in')) sawPause = true;
     const actions = $$('.actions button');
+    const hold = actions.find((b) => b.textContent.includes('Hold'));
+    if (hold && !holds) {
+      holds++;
+      click(hold);
+      await waitFor(() => !S().state.can_hold, 'hold accepted');
+      if (S().state.claim_left_ms <= 300) throw new Error('hold should stretch the pause');
+    }
     const pick = (t) => actions.find((b) => b.textContent.startsWith(t));
     const act = pick('🎉') || pick('Pung') || pick('Kong') || pick('Pass');
     if (act) {
@@ -188,15 +202,22 @@ try {
   // the last hand's panel is shown together with the standings, so count it here
   if ($('.overlay') && $('.overlay').textContent.includes('wins!')) wins++;
   const handsPlayed = S().state.view.hand_no;
-  const standings = $$('ol li').map((li) => li.textContent);
-  const scores = S().state.view.scores;
-  console.log('standings:', standings.join(' | '));
-  if (standings.length !== 4) throw new Error('expected four standings');
-  if (scores.reduce((a, b) => a + b, 0) !== 0) throw new Error('scores must sum to zero');
-  if (handsPlayed < 4) throw new Error(`expected at least 4 hands, played ${handsPlayed}`);
-  if (wins < 1) throw new Error('expected at least one win to be shown');
-  if (errors.length) throw new Error('page errors: ' + errors.join('; '));
-  console.log(`UI smoke test passed: ${handsPlayed} hands, ${wins} wins shown, no page errors`);
+  if (windowed) {
+    if (!sawPause) throw new Error('expected the pause after discards to show');
+    if (!holds) throw new Error('expected a chance to hold a discard');
+    if (errors.length) throw new Error('page errors: ' + errors.join('; '));
+    console.log(`UI smoke test passed (pause on): pause shown, hold used, ${overlaysSeen} hand(s) played`);
+  } else {
+    const standings = $$('ol li').map((li) => li.textContent);
+    const scores = S().state.view.scores;
+    console.log('standings:', standings.join(' | '));
+    if (standings.length !== 4) throw new Error('expected four standings');
+    if (scores.reduce((a, b) => a + b, 0) !== 0) throw new Error('scores must sum to zero');
+    if (handsPlayed < 4) throw new Error(`expected at least 4 hands, played ${handsPlayed}`);
+    if (wins < 1) throw new Error('expected at least one win to be shown');
+    if (errors.length) throw new Error('page errors: ' + errors.join('; '));
+    console.log(`UI smoke test passed: ${handsPlayed} hands, ${wins} wins shown, no page errors`);
+  }
   window.close();
 } catch (err) {
   console.error('UI smoke test FAILED:', err);

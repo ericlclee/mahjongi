@@ -32,7 +32,7 @@ function decide(state) {
 }
 
 execSync('cargo build -p mahjongi-server', { cwd: root, stdio: 'inherit' });
-const server = spawn(path.join(root, 'target/debug/mahjongi-server'), [], { env: { ...process.env, PORT: String(PORT), WEB_DIR: path.join(root, 'web') }, stdio: 'inherit' });
+const server = spawn(path.join(root, 'target/debug/mahjongi-server'), [], { env: { CLAIM_WINDOW_SECS: '0', ...process.env, PORT: String(PORT), WEB_DIR: path.join(root, 'web') }, stdio: 'inherit' });
 const bots = [];
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
 try {

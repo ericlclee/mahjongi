@@ -49,6 +49,8 @@ pub enum ClientMsg {
     Act {
         action: Action,
     },
+    /// Stretch the pause after a discard (only if you could claim the tile).
+    Hold,
     NextHand,
     Leave,
     Ping,
@@ -134,6 +136,10 @@ pub enum ServerMsg {
         turn_secs: u32,
         /// Time left before the server plays for whoever is slow, when a timer is running.
         turn_left_ms: Option<u64>,
+        /// Time left before the next draw, while a discard can still be claimed.
+        claim_left_ms: Option<u64>,
+        /// Whether you can stretch that pause (you could claim the tile and nobody has yet).
+        can_hold: bool,
         view: View,
     },
     Error {

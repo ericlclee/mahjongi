@@ -102,3 +102,35 @@ fn views_hide_other_players_hands() {
     let json = serde_json::to_string(&dealer).unwrap();
     assert!(json.contains("\"phase\":\"discard\""));
 }
+
+#[test]
+fn windowed_games_finish_and_replay_exactly() {
+    for seed in 0..10u64 {
+        let mut cfg = config(seed, seed % 2 == 0, -3);
+        cfg.claim_window = true;
+        let mut game = Game::new(cfg.clone());
+        for _ in 0..100_000 {
+            if game.is_over() {
+                break;
+            }
+            if game.is_between_hands() {
+                game.next_hand().unwrap();
+                continue;
+            }
+            let seats = game.waiting_seats();
+            if seats.is_empty() {
+                // Nobody left to answer: the window closes.
+                game.close_claims().unwrap();
+                continue;
+            }
+            let seat = seats[0];
+            let action = simple_bot::choose(&game, seat).unwrap();
+            game.apply(seat, action).unwrap();
+        }
+        assert!(game.is_over(), "seed {seed}");
+        assert_eq!(game.scores().iter().sum::<i32>(), 0);
+        let replayed = Game::replay(cfg, game.history()).unwrap();
+        assert_eq!(replayed.scores(), game.scores());
+        assert_eq!(replayed.history().len(), game.history().len());
+    }
+}

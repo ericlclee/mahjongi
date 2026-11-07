@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Plays a full game through the real web UI (in jsdom) against a running server",
   "scripts": {
-    "test": "node smoke.mjs"
+    "test": "node smoke.mjs && CLAIM_WINDOW_SECS=0.3 CLAIM_HOLD_SECS=0.8 node smoke.mjs"
   },
   "devDependencies": {
     "jsdom": "^26.0.0",

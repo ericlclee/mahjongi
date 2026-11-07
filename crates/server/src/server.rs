@@ -13,6 +13,10 @@ pub type ConnId = u64;
 
 /// How long the table waits on a disconnected player before the server plays for them.
 const AWAY_GRACE: Duration = Duration::from_secs(10);
+/// After a discard, how long everyone gets before the next draw.
+pub const CLAIM_WINDOW: Duration = Duration::from_secs(3);
+/// How long the window lasts in total once someone who can claim the tile holds it.
+pub const CLAIM_HOLD: Duration = Duration::from_secs(10);
 const ROOM_IDLE_LIMIT: Duration = Duration::from_secs(15 * 60);
 
 struct Conn {
@@ -37,7 +41,15 @@ struct Room {
     deadline: Option<Instant>,
     /// Since when the table has been waiting on a disconnected player.
     away_since: Option<Instant>,
+    /// The pause after a discard, while it is open.
+    window: Option<ClaimWindow>,
     empty_since: Option<Instant>,
+}
+
+#[derive(Clone, Copy)]
+struct ClaimWindow {
+    opened: Instant,
+    held: bool,
 }
 
 pub struct Server {
@@ -46,18 +58,40 @@ pub struct Server {
     next_conn: ConnId,
     bases: Vec<Base>,
     addons: Vec<AddOn>,
+    /// Pause after each discard; zero turns the pause off.
+    claim_window: Duration,
+    claim_hold: Duration,
 }
 
 impl Room {
-    /// Start a fresh countdown if a game is running with a timer and someone has to decide.
+    /// Bring the timers up to date after the game changed: open or close the claim window,
+    /// and start a fresh turn countdown if a timer is set and someone has to decide.
     fn reset_deadline(&mut self) {
+        let in_window = self
+            .game
+            .as_ref()
+            .is_some_and(|g| g.config().claim_window && g.in_claim());
+        self.window = match (in_window, self.window) {
+            (true, Some(w)) => Some(w),
+            (true, None) => Some(ClaimWindow {
+                opened: Instant::now(),
+                held: false,
+            }),
+            (false, _) => None,
+        };
         let running = self
             .game
             .as_ref()
             .is_some_and(|g| !g.is_over() && !g.is_between_hands());
-        self.deadline = (running && self.settings.turn_secs > 0)
+        // While the claim window is open it sets the pace, not the turn timer.
+        self.deadline = (running && !in_window && self.settings.turn_secs > 0)
             .then(|| Instant::now() + Duration::from_secs(self.settings.turn_secs as u64));
     }
+}
+
+/// True if this seat could take the discard now (anything other than passing).
+fn can_claim(game: &Game, seat: usize) -> bool {
+    game.in_claim() && game.legal_actions(seat).iter().any(|a| *a != Action::Pass)
 }
 
 /// What the server plays when time runs out: pass on a claim, otherwise throw back the
@@ -112,14 +146,33 @@ fn random_code() -> String {
 }
 
 impl Server {
+    /// A server without the pause after discards (claims resolve as soon as everyone
+    /// eligible has answered). Handy for tests.
     pub fn new() -> Server {
+        Server::with_claim_window(Duration::ZERO, Duration::ZERO)
+    }
+
+    /// A server that pauses `window` after every discard before the next draw; a player who
+    /// can claim the tile may stretch the pause to `hold` in total, without telling anyone.
+    pub fn with_claim_window(window: Duration, hold: Duration) -> Server {
         Server {
             rooms: HashMap::new(),
             conns: HashMap::new(),
             next_conn: 1,
             bases: builtin::bases(),
             addons: builtin::addons(),
+            claim_window: window,
+            claim_hold: hold.max(window),
         }
+    }
+
+    fn window_end(&self, w: &ClaimWindow) -> Instant {
+        w.opened
+            + if w.held {
+                self.claim_hold
+            } else {
+                self.claim_window
+            }
     }
 
     pub fn connect(&mut self, tx: UnboundedSender<String>) -> ConnId {
@@ -157,9 +210,26 @@ impl Server {
             let Some(room) = self.rooms.get_mut(&code) else {
                 continue;
             };
+            let window_end = room.window.map(|w| {
+                w.opened
+                    + if w.held {
+                        self.claim_hold
+                    } else {
+                        self.claim_window
+                    }
+            });
             let Some(game) = room.game.as_mut() else {
                 continue;
             };
+            if window_end.is_some_and(|end| end <= now) {
+                // Anyone who has not answered passes, and play moves on.
+                let _ = game.close_claims();
+                room.away_since = None;
+                room.window = None;
+                room.reset_deadline();
+                self.broadcast(&code);
+                continue;
+            }
             let waiting = game.waiting_seats();
             let away: Vec<usize> = waiting
                 .iter()
@@ -201,6 +271,7 @@ impl Server {
             ClientMsg::SetOptions { settings } => self.set_options(conn, settings),
             ClientMsg::Start => self.start(conn),
             ClientMsg::Act { action } => self.act(conn, action),
+            ClientMsg::Hold => self.hold(conn),
             ClientMsg::NextHand => self.next_hand(conn),
             ClientMsg::Leave => self.leave(conn),
             ClientMsg::Ping => Ok(()),
@@ -236,6 +307,7 @@ impl Server {
                 acks: [false; SEATS],
                 deadline: None,
                 away_since: None,
+                window: None,
                 empty_since: None,
             },
         );
@@ -367,6 +439,7 @@ impl Server {
         let mut config = GameConfig::new(rules, rand::random());
         config.flowers = settings.flowers;
         config.rounds = settings.rounds;
+        config.claim_window = !self.claim_window.is_zero();
         let room = self.rooms.get_mut(&code).expect("room exists");
         room.game = Some(Game::new(config));
         room.acks = [false; SEATS];
@@ -381,6 +454,24 @@ impl Server {
         let game = room.game.as_mut().ok_or("the game has not started")?;
         game.apply(seat, action).map_err(|e| e.to_string())?;
         room.reset_deadline();
+        self.broadcast(&code);
+        Ok(())
+    }
+
+    /// Stretch the pause after a discard. Only someone who could claim it may, once per
+    /// discard; the others just see the countdown get longer.
+    fn hold(&mut self, conn: ConnId) -> Result<(), String> {
+        let (code, seat) = self.location(conn)?;
+        let room = self.rooms.get_mut(&code).expect("room exists");
+        let game = room.game.as_ref().ok_or("the game has not started")?;
+        let window = room.window.as_mut().ok_or("there is nothing to hold")?;
+        if !can_claim(game, seat) {
+            return Err("you can only hold a tile you could claim".to_string());
+        }
+        if window.held {
+            return Ok(());
+        }
+        window.held = true;
         self.broadcast(&code);
         Ok(())
     }
@@ -547,6 +638,12 @@ impl Server {
                 turn_left_ms: room
                     .deadline
                     .map(|d| d.saturating_duration_since(Instant::now()).as_millis() as u64),
+                claim_left_ms: room.window.map(|w| {
+                    self.window_end(&w)
+                        .saturating_duration_since(Instant::now())
+                        .as_millis() as u64
+                }),
+                can_hold: room.window.is_some_and(|w| !w.held) && can_claim(game, seat),
                 view: game.view(seat),
             });
         }

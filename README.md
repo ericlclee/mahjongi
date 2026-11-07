@@ -37,6 +37,10 @@ A `Dockerfile` is included, plus `render.yaml` (Render: New > Blueprint > pick t
 - **Add-ons:** `rulesets/addons.json`. Small layers that add hands, change a value, or shift the
   threshold. They can declare `requires`, `conflicts` and `order`.
 - **Room options:** switch hands off, shift the threshold and set a turn timer from the lobby.
+- **Pause after discards:** every discard waits 3 seconds before the next draw, whether or not
+  anyone can claim it, so the pause gives nothing away. Anyone who could claim the tile can tap
+  Hold to stretch it to 10 seconds; nobody is told who. A claim made during the pause happens at
+  once. Set `CLAIM_WINDOW_SECS` and `CLAIM_HOLD_SECS` to change the lengths (0 turns the pause off).
 - **Turn timer:** off, or 10 to 60 seconds. When it runs out the server passes on a claim, or
   throws the tile just drawn. The countdown restarts after every action.
 
