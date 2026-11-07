@@ -369,6 +369,13 @@ fn the_host_can_pick_another_ruleset() {
     let (_, mut clients, _) = full_room(&mut server);
     let lobby = clients[0].last_of("lobby").expect("lobby");
     assert!(lobby["bases"].as_array().unwrap().len() >= 3);
+    for hand in lobby["all_hands"].as_array().unwrap() {
+        assert!(
+            !hand["example"].as_array().unwrap().is_empty(),
+            "{} needs an example hand",
+            hand["id"]
+        );
+    }
     assert_eq!(lobby["rules"]["unit"], "fan");
 
     let mut settings = timed_settings(0);

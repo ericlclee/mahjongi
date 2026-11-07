@@ -1,6 +1,6 @@
 //! Messages exchanged over the WebSocket, as JSON with a `type` tag.
 
-use mahjongi_engine::{Action, View};
+use mahjongi_engine::{Action, Tile, View};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,6 +73,9 @@ pub struct PlayerInfo {
 pub struct HandRef {
     pub id: String,
     pub name: String,
+    /// An example of the hand, as groups of tile indexes.
+    pub example: Vec<Vec<Tile>>,
+    pub note: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

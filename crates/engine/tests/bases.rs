@@ -128,3 +128,49 @@ fn full_games_play_out_under_every_base() {
         }
     }
 }
+
+#[test]
+fn every_hand_has_an_example_that_scores_it() {
+    let examples = builtin::examples();
+    let mut hands: Vec<(String, Ruleset)> = Vec::new();
+    for base in builtin::bases() {
+        let options = RoomOptions {
+            threshold_offset: -10,
+            addons: builtin::addons()
+                .iter()
+                .filter(|a| a.supported_by(&base) && a.id != "strict_threshold")
+                .map(|a| a.id.clone())
+                .collect(),
+            ..Default::default()
+        };
+        let rules = Ruleset::resolve(&base, &builtin::addons(), &options).unwrap();
+        for h in &rules.hands {
+            hands.push((h.id.clone(), rules.clone()));
+        }
+    }
+    for (id, rules) in hands {
+        let example = examples
+            .get(&id)
+            .unwrap_or_else(|| panic!("no example for {id}"));
+        let (concealed, melds) = example.split();
+        assert_eq!(
+            concealed.total() + melds.len() * 3,
+            14,
+            "{id}: example is not a full hand"
+        );
+        let scored = |self_draw| {
+            let ctx = WinContext {
+                concealed: concealed.clone(),
+                melds: melds.clone(),
+                winning_tile: Tile::new(0).unwrap(),
+                self_draw,
+                seat_wind: Tile::new(27).unwrap(),
+                round_wind: Tile::new(27).unwrap(),
+            };
+            score(&rules, &ctx)
+                .map(|r| r.matches.iter().any(|m| m.id == id))
+                .unwrap_or(false)
+        };
+        assert!(scored(true), "{id}: example does not score as {id}");
+    }
+}

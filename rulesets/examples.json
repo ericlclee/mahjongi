@@ -1,0 +1,87 @@
+{
+  "common_hand": {
+    "tiles": "123m 456m 789p 234s 55s",
+    "note": "Four chows and a pair that is not a dragon or your wind."
+  },
+  "self_draw": {
+    "tiles": "123m 456m 789p 234s 55s",
+    "note": "Any winning hand, finished with a tile you drew yourself."
+  },
+  "concealed": {
+    "tiles": "123m 456m 789p 234s 55s",
+    "note": "Any winning hand with no claimed sets."
+  },
+  "fully_concealed": {
+    "tiles": "123m 456m 789p 234s 55s",
+    "note": "No claimed sets, and finished with a tile you drew yourself."
+  },
+  "dragon_pung": {
+    "tiles": "777z 123m 456p 789s 11s",
+    "note": "Counts once for each dragon pung."
+  },
+  "seat_wind_pung": {
+    "tiles": "111z 123m 456p 789s 55s",
+    "note": "A pung of your own seat's wind (East in this example)."
+  },
+  "round_wind_pung": {
+    "tiles": "111z 123m 456p 789s 55s",
+    "note": "A pung of the round's wind (East in this example)."
+  },
+  "all_pungs": {
+    "tiles": "111m 555p 999s 222z 66z"
+  },
+  "mixed_one_suit": {
+    "tiles": "123m 456m 789m 111z 55m",
+    "note": "One numbered suit plus honours."
+  },
+  "pure_one_suit": {
+    "tiles": "123m 345m 567m 789m 99m",
+    "note": "One numbered suit and nothing else."
+  },
+  "seven_pairs": {
+    "tiles": "11m 33m 55p 77p 22s 44z 66z"
+  },
+  "small_three_dragons": {
+    "tiles": "555z 666z 77z 123m 456m",
+    "note": "Two dragon pungs and a pair of the third."
+  },
+  "big_three_dragons": {
+    "tiles": "555z 666z 777z 123m 55p"
+  },
+  "small_four_winds": {
+    "tiles": "111z 222z 333z 44z 123m",
+    "note": "Three wind pungs and a pair of the fourth."
+  },
+  "big_four_winds": {
+    "tiles": "111z 222z 333z 444z 55m"
+  },
+  "all_honors": {
+    "tiles": "111z 222z 555z 666z 77z"
+  },
+  "all_terminals": {
+    "tiles": "111m 999m 111p 999p 11s",
+    "note": "Only 1s and 9s."
+  },
+  "thirteen_orphans": {
+    "tiles": "19m 19p 19s 1234567z 1m",
+    "note": "One of every 1, 9, wind and dragon, plus a second of any of them."
+  },
+  "outside_hand": {
+    "tiles": "123m 789m 123p 999p 11z",
+    "note": "Every set and the pair has a 1, a 9 or an honour."
+  },
+  "all_green": {
+    "tiles": "234s 234s 666s 888s 66z",
+    "note": "Only 2, 3, 4, 6, 8 of bamboo and the green dragon."
+  },
+  "three_kongs": {
+    "tiles": "1111m 2222p 3333s 123m 55p"
+  },
+  "four_kongs": {
+    "tiles": "1111m 2222p 3333s 4444s 55p"
+  },
+  "all_simples": {
+    "tiles": "234m 456m 678p 345s 88s",
+    "note": "Only 2 to 8 of the numbered suits."
+  }
+}

@@ -293,13 +293,20 @@
     const handBox = h('div', { class: 'card handlist' },
       h('h2', {}, 'Hands that can win'),
       h('p', { class: 'muted small' }, `Switch hands off to stop them counting. Values are in ${unit} (open hands in brackets when lower).`),
+      h('button', { class: 'secondary small', onclick: () => { S.showExamples = !S.showExamples; render(); } },
+        S.showExamples ? 'Hide example hands' : 'Show example hands'),
       L.all_hands.map((hd) => {
         const on = !st.disabled_hands.includes(hd.id);
         const v = valueOf(hd.id);
         const value = v ? (v.open_value !== v.value ? `${v.value} (${v.open_value}) ${unit}` : `${v.value} ${unit}`) : 'off';
-        return h('label', {},
+        const row = h('label', {},
           h('input', { type: 'checkbox', checked: on, disabled: !isHost, onchange: (e) => toggleHand(hd.id, e.target.checked) }),
           h('span', { class: 'grow' }, hd.name), h('span', { class: 'badge' + (on ? '' : ' off') }, value));
+        if (!S.showExamples || !hd.example || !hd.example.length) return row;
+        return h('div', { class: 'hand-entry' + (on ? '' : ' off') }, row,
+          h('div', { class: 'example' }, hd.example.map((g) =>
+            h('div', { class: 'group' }, g.map((t) => tileEl(t, { size: 'mini' }))))),
+          hd.note ? h('div', { class: 'muted small' }, hd.note) : null);
       }));
 
     const thresholdBox = h('div', { class: 'card' },

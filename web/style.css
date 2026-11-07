@@ -106,3 +106,9 @@ details summary { cursor: pointer; color: var(--muted); margin: 6px 0; }
 
 .timer { font-weight: 700; font-variant-numeric: tabular-nums; min-height: 1.4em; }
 .timer.low { color: #c0392b; }
+
+.hand-entry { padding: 6px 0 10px; border-bottom: 1px solid rgba(0,0,0,.08); }
+.hand-entry.off .example { opacity: .45; }
+.example { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px 26px; }
+.example .group { display: flex; gap: 1px; }
+.hand-entry > .muted { margin-left: 26px; }

@@ -69,6 +69,7 @@ pub struct Server {
     next_conn: ConnId,
     bases: Vec<Base>,
     addons: Vec<AddOn>,
+    examples: HashMap<String, builtin::Example>,
     /// Pause after each discard; zero turns the pause off.
     claim_window: Duration,
     claim_hold: Duration,
@@ -174,6 +175,7 @@ impl Server {
             next_conn: 1,
             bases: builtin::bases(),
             addons: builtin::addons(),
+            examples: builtin::examples(),
             claim_window: window,
             claim_hold: hold.max(window),
             bot_delay: Duration::ZERO,
@@ -774,9 +776,14 @@ impl Server {
             all_hands: all
                 .hands
                 .iter()
-                .map(|h| HandRef {
-                    id: h.id.clone(),
-                    name: h.name.clone(),
+                .map(|h| {
+                    let example = self.examples.get(&h.id);
+                    HandRef {
+                        id: h.id.clone(),
+                        name: h.name.clone(),
+                        example: example.map(|e| e.groups()).unwrap_or_default(),
+                        note: example.and_then(|e| e.note.clone()),
+                    }
                 })
                 .collect(),
             addons: self
