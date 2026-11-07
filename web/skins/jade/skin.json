@@ -1,0 +1,15 @@
+{
+  "name": "Jade",
+  "description": "Dark green tiles with light characters.",
+  "vars": {
+    "--tile": "#1f6b4f",
+    "--tile-edge": "#0c3a29",
+    "--man": "#ffb59e",
+    "--pin": "#a9d8ff",
+    "--sou": "#c9f2a6",
+    "--tile-honor": "#f6efd9",
+    "--tile-dragon-white": "#e9e4d4",
+    "--tile-back": "repeating-linear-gradient(45deg, #b8892e, #b8892e 4px, #9c7424 4px, #9c7424 8px)",
+    "--tile-back-edge": "#6b4f17"
+  }
+}

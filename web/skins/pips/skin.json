@@ -1,0 +1,6 @@
+{
+  "name": "Pips",
+  "description": "Picture tiles with real dots and bamboo sticks.",
+  "images": "tiles/{code}.svg",
+  "back": "tiles/back.svg"
+}

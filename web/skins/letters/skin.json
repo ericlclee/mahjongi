@@ -1,0 +1,115 @@
+{
+  "name": "Letters",
+  "description": "English letters and words, handy while learning.",
+  "faces": {
+    "1m": {
+      "suit": "crak"
+    },
+    "1p": {
+      "suit": "dot"
+    },
+    "1s": {
+      "suit": "bam"
+    },
+    "2m": {
+      "suit": "crak"
+    },
+    "2p": {
+      "suit": "dot"
+    },
+    "2s": {
+      "suit": "bam"
+    },
+    "3m": {
+      "suit": "crak"
+    },
+    "3p": {
+      "suit": "dot"
+    },
+    "3s": {
+      "suit": "bam"
+    },
+    "4m": {
+      "suit": "crak"
+    },
+    "4p": {
+      "suit": "dot"
+    },
+    "4s": {
+      "suit": "bam"
+    },
+    "5m": {
+      "suit": "crak"
+    },
+    "5p": {
+      "suit": "dot"
+    },
+    "5s": {
+      "suit": "bam"
+    },
+    "6m": {
+      "suit": "crak"
+    },
+    "6p": {
+      "suit": "dot"
+    },
+    "6s": {
+      "suit": "bam"
+    },
+    "7m": {
+      "suit": "crak"
+    },
+    "7p": {
+      "suit": "dot"
+    },
+    "7s": {
+      "suit": "bam"
+    },
+    "8m": {
+      "suit": "crak"
+    },
+    "8p": {
+      "suit": "dot"
+    },
+    "8s": {
+      "suit": "bam"
+    },
+    "9m": {
+      "suit": "crak"
+    },
+    "9p": {
+      "suit": "dot"
+    },
+    "9s": {
+      "suit": "bam"
+    },
+    "1z": {
+      "big": "E",
+      "suit": "east"
+    },
+    "2z": {
+      "big": "S",
+      "suit": "south"
+    },
+    "3z": {
+      "big": "W",
+      "suit": "west"
+    },
+    "4z": {
+      "big": "N",
+      "suit": "north"
+    },
+    "5z": {
+      "big": "W",
+      "suit": "white"
+    },
+    "6z": {
+      "big": "G",
+      "suit": "green"
+    },
+    "7z": {
+      "big": "R",
+      "suit": "red"
+    }
+  }
+}

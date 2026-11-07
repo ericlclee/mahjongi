@@ -6,6 +6,12 @@
   const SUIT_CJK = ['萬', '筒', '索'];
   const SAVE_KEY = 'mahjongi.session';
   const NAME_KEY = 'mahjongi.name';
+  const SKIN_KEY = 'mahjongi.skin';
+
+  // Tile codes in notation order, matching the tile index: 1m-9m, 1p-9p, 1s-9s, 1z-7z.
+  const tileCode = (i) => (i < 27 ? `${(i % 9) + 1}${'mps'[Math.floor(i / 9)]}` : `${i - 26}z`);
+  // The built-in look, used until (or if) skins/ cannot be loaded.
+  const CLASSIC = { id: 'classic', name: 'Classic', vars: {}, faces: {} };
 
   const S = {
     ws: null,
@@ -16,6 +22,9 @@
     state: null,
     selected: null,
     showRules: false,
+    skins: [CLASSIC],
+    skin: CLASSIC,
+    showSkins: false,
     rejoining: false,
   };
   window.__mj = S; // handy for debugging and UI tests
@@ -95,16 +104,87 @@
     return f.big + f.suit;
   }
 
-  function tileEl(i, opts = {}) {
-    const f = tileFace(i);
-    const cls = ['tile', f.cls, opts.size, opts.selectable && 'selectable', opts.selected && 'selected',
-      opts.dim && 'dim', opts.hot && 'hot', opts.win && 'win'].filter(Boolean).join(' ');
-    return h('div', { class: cls, title: tileText(i), onclick: opts.onclick },
-      h('span', { class: 'big' }, f.big), f.suit ? h('span', { class: 'suit' }, f.suit) : null);
+  // ---------- skins ----------
+  // Every tile on screen is drawn by tileEl or backEl, so the skin decides all of them.
+
+  function skinAsset(skin, file) {
+    return `skins/${skin.id}/${file}`;
   }
 
-  function backEl(size) {
-    return h('div', { class: ['tile', 'back', size].filter(Boolean).join(' ') });
+  function tileEl(i, opts = {}, skin = S.skin) {
+    const base = tileFace(i);
+    const f = { ...base, ...(skin.faces && skin.faces[tileCode(i)]) };
+    const pic = skin.images ? skinAsset(skin, skin.images.replace('{code}', tileCode(i))) : null;
+    const cls = ['tile', f.cls, pic && 'pic', opts.size, opts.selectable && 'selectable', opts.selected && 'selected',
+      opts.dim && 'dim', opts.hot && 'hot', opts.win && 'win'].filter(Boolean).join(' ');
+    const title = tileText(i);
+    if (pic) return h('div', { class: cls, title, onclick: opts.onclick }, h('img', { src: pic, alt: title }));
+    return h('div', { class: cls, title, onclick: opts.onclick },
+      h('span', { class: 'big' }, f.big),
+      f.suit ? h('span', { class: 'suit' + (f.suit.length > 1 ? ' word' : '') }, f.suit) : null);
+  }
+
+  function backEl(size, skin = S.skin) {
+    const cls = ['tile', 'back', skin.back && 'pic', size].filter(Boolean).join(' ');
+    return h('div', { class: cls }, skin.back ? h('img', { src: skinAsset(skin, skin.back), alt: '' }) : null);
+  }
+
+  // Apply a skin's CSS variables to the page, replacing the previous skin's.
+  function applySkin(skin) {
+    const root = document.documentElement.style;
+    for (const name of Object.keys(S.skin.vars || {})) root.removeProperty(name);
+    for (const [name, value] of Object.entries(skin.vars || {})) root.setProperty(name, value);
+    S.skin = skin;
+    safeSet(SKIN_KEY, skin.id);
+    render();
+  }
+
+  // Skins live in web/skins/<id>/skin.json, listed in web/skins/index.json.
+  async function loadSkins() {
+    try {
+      const ids = await (await fetch('skins/index.json')).json();
+      const loaded = await Promise.all(ids.map(async (id) => {
+        try {
+          const skin = await (await fetch(`skins/${id}/skin.json`)).json();
+          return { vars: {}, faces: {}, ...skin, id };
+        } catch (e) { return null; }
+      }));
+      S.skins = loaded.filter(Boolean);
+      const css = getComputedStyle(document.documentElement);
+      for (const skin of S.skins) {
+        for (const name of Object.keys(skin.vars || {})) defaultVars[name] = css.getPropertyValue(name).trim();
+      }
+      if (!S.skins.some((x) => x.id === 'classic')) S.skins.unshift(CLASSIC);
+      const saved = S.skins.find((x) => x.id === safeGet(SKIN_KEY));
+      if (saved) applySkin(saved); else render();
+    } catch (e) { /* keep the built-in look */ }
+  }
+
+  const SAMPLE = [0, 4, 13, 26, 27, 31, 32, 33];
+  // The page's own values for every variable some skin changes, read before any skin applied,
+  // so a preview can undo the current skin's colours.
+  let defaultVars = {};
+  function varsOf() {
+    return defaultVars;
+  }
+  function skinButton() {
+    return h('button', { class: 'secondary icon-btn', title: 'Tile style', onclick: () => { S.showSkins = true; render(); } }, '🎨');
+  }
+
+  function skinPanel() {
+    const close = () => { S.showSkins = false; render(); };
+    return h('div', { class: 'skin-panel', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
+      h('div', { class: 'card' },
+        h('h2', {}, 'Tile style'),
+        h('p', { class: 'muted small' }, 'Changes every tile you see. Other players keep their own choice.'),
+        S.skins.map((skin) => h('button', {
+          class: 'skin-option' + (skin.id === S.skin.id ? ' on' : ''),
+          onclick: () => { applySkin(skin); S.showSkins = false; render(); },
+        }, h('b', {}, skin.name), skin.description ? h('div', { class: 'muted small' }, skin.description) : null,
+        // The skin's colours are set on the preview itself, so each one shows its own look.
+        h('div', { class: 'tiles', style: Object.entries({ ...varsOf(S.skin), ...skin.vars }).map(([k, v]) => `${k}:${v}`).join(';') },
+          SAMPLE.map((t) => tileEl(t, { size: 'small' }, skin)), backEl('small', skin)))),
+        h('button', { class: 'secondary', onclick: close }, 'Done')));
   }
 
   function meldEl(m, size) {
@@ -211,7 +291,7 @@
     if (S.state) view = renderTable(S.state);
     else if (S.lobby) view = renderLobby(S.lobby);
     else view = renderHome();
-    app.replaceChildren(view);
+    app.replaceChildren(view, S.showSkins ? skinPanel() : '');
   }
 
   function renderHome() {
@@ -225,7 +305,7 @@
       oninput: (e) => { S.joinCode = e.target.value; },
     });
     return h('div', {},
-      h('h1', {}, '🀄 Mahjongi'),
+      h('div', { class: 'topbar' }, h('h1', {}, '🀄 Mahjongi'), skinButton()),
       h('p', { class: 'muted' }, 'Four-player mahjong with rules you can switch on and off. Nothing is saved after a game.'),
       h('div', { class: 'card' },
         h('h2', {}, 'Your name'), nameInput),
@@ -333,7 +413,8 @@
       st.turn_secs ? h('p', { class: 'muted small' }, 'If you run out of time the game passes on a claim, or throws the tile you just drew.') : null);
 
     return h('div', {},
-      h('div', { class: 'topbar' }, h('h1', {}, '🀄 Room'), h('button', { class: 'secondary', onclick: leave }, 'Leave')),
+      h('div', { class: 'topbar' }, h('h1', {}, '🀄 Room'),
+        h('div', { class: 'row' }, skinButton(), h('button', { class: 'secondary', onclick: leave }, 'Leave'))),
       h('div', { class: 'card' },
         h('div', { class: 'muted' }, 'Room code'),
         h('div', { class: 'code' }, L.code),
@@ -489,6 +570,7 @@
           h('b', {}, `${WIND_EN[v.round_wind]} round · hand ${v.hand_no}`),
           h('div', { class: 'muted small' }, `Wall ${v.wall_remaining} · need ${v.threshold} ${m.rules.unit} · room ${m.code}`)),
         h('div', { class: 'row' },
+          skinButton(),
           h('button', { class: 'secondary', onclick: () => { S.showRules = !S.showRules; render(); } }, 'Rules'),
           h('button', { class: 'secondary', onclick: () => { if (window.confirm('Leave the game? You can rejoin from this device.')) leave(); } }, 'Leave'))),
       S.showRules ? rulesPanel(m) : null,
@@ -564,4 +646,5 @@
   setInterval(() => send({ type: 'ping' }), 25000);
   render();
   connect();
+  loadSkins();
 })();

@@ -10,6 +10,12 @@
   --man: #c0392b;
   --pin: #1f5fa8;
   --sou: #2e7d32;
+  /* Tile skin variables: a skin's skin.json may override any of these. */
+  --tile-honor: #222;
+  --tile-dragon-white: #6a7a8a;
+  --tile-back: repeating-linear-gradient(45deg, #1b7a55, #1b7a55 4px, #17694a 4px, #17694a 8px);
+  --tile-back-edge: #0d4b34;
+  --tile-font: inherit;
   --tw: min(6.6vw, 40px);
 }
 
@@ -52,14 +58,17 @@ label input { margin-top: 4px; }
   width: var(--tw); height: calc(var(--tw) * 1.38);
   background: var(--tile); border: 1px solid var(--tile-edge); border-bottom-width: 3px;
   border-radius: 5px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-  color: #222; font-weight: 800; line-height: 1; user-select: none; position: relative; flex: 0 0 auto;
+  color: var(--tile-honor); font-weight: 800; font-family: var(--tile-font); line-height: 1; user-select: none; position: relative; flex: 0 0 auto;
 }
 .tile .big { font-size: calc(var(--tw) * 0.55); }
 .tile .suit { font-size: calc(var(--tw) * 0.34); margin-top: 2px; }
 .tile.m { color: var(--man); } .tile.p { color: var(--pin); } .tile.s { color: var(--sou); }
 .tile.z .big { font-size: calc(var(--tw) * 0.68); }
-.tile.dragon-red { color: var(--man); } .tile.dragon-green { color: var(--sou); } .tile.dragon-white { color: #6a7a8a; }
-.tile.back { background: repeating-linear-gradient(45deg, #1b7a55, #1b7a55 4px, #17694a 4px, #17694a 8px); border-color: #0d4b34; }
+.tile.dragon-red { color: var(--man); } .tile.dragon-green { color: var(--sou); } .tile.dragon-white { color: var(--tile-dragon-white); }
+.tile.back { background: var(--tile-back); border-color: var(--tile-back-edge); }
+.tile.pic { padding: 0; overflow: hidden; }
+.tile.pic img { width: 100%; height: 100%; display: block; pointer-events: none; }
+.tile .suit.word { font-size: calc(var(--tw) * 0.24); text-transform: uppercase; letter-spacing: .02em; }
 .tile.small { --tw: min(4.2vw, 24px); }
 .tile.mini { --tw: min(3.6vw, 20px); }
 .tile.selectable { cursor: pointer; }
@@ -112,3 +121,11 @@ details summary { cursor: pointer; color: var(--muted); margin: 6px 0; }
 .example { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px 26px; }
 .example .group { display: flex; gap: 1px; }
 .hand-entry > .muted { margin-left: 26px; }
+
+/* ---- skin picker ---- */
+.icon-btn { padding: 6px 10px; }
+.skin-panel { position: fixed; inset: 0; background: #0009; display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
+.skin-panel .card { max-width: 460px; width: 100%; max-height: 90vh; overflow: auto; }
+.skin-option { display: block; width: 100%; text-align: left; margin: 6px 0; padding: 10px; background: var(--felt); border: 2px solid transparent; color: var(--ink); }
+.skin-option.on { border-color: var(--accent); }
+.skin-option .tiles { margin-top: 6px; }
